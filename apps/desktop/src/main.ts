@@ -593,10 +593,6 @@ export class Main {
           name: "autotype-ga",
           active: () => this.mainDesktopAutotypeService.active === FeatureActivity.Active,
         },
-        {
-          name: "autofill-provider",
-          active: () => this.desktopAutofillMain.active === FeatureActivity.Active,
-        },
         { name: "duckduckgo", active: () => ddgEnabled },
         // Logout cleanup runs in the renderer, so main can only lock on timeout.
         { name: "logout-timeout-action", active: () => this.headlessVaultTimeout.logoutOnTimeout },
