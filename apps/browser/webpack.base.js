@@ -141,6 +141,9 @@ module.exports.buildConfig = function buildConfig(params) {
         BW_DETECT_SYNC_BOUNDARIES: JSON.stringify(
           process.env.BW_DETECT_SYNC_BOUNDARIES === "true" || ENV === "development",
         ),
+        // Optional self-hosted server applied on first install (M3 Bitwarden builds).
+        M3B_SERVER_URL: JSON.stringify(process.env.M3B_SERVER_URL ?? ""),
+        M3B_WEB_VAULT_URL: JSON.stringify(process.env.M3B_WEB_VAULT_URL ?? ""),
       },
     }),
     new webpack.EnvironmentPlugin({

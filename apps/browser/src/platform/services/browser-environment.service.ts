@@ -68,6 +68,22 @@ export class BrowserEnvironmentService extends DefaultEnvironmentService {
         });
   }
 
+  /**
+   * Applies the self-hosted server baked into this build (M3B_SERVER_URL), if any.
+   * Only used on first install, so a server chosen later by the user is never overwritten.
+   */
+  async setUrlsToBuildDefault(): Promise<boolean> {
+    const base = process.env.M3B_SERVER_URL;
+    if (!base) {
+      return false;
+    }
+    await this.setEnvironment(Region.SelfHosted, {
+      base,
+      webVault: process.env.M3B_WEB_VAULT_URL || base,
+    });
+    return true;
+  }
+
   async setUrlsToManagedEnvironment() {
     const env = await this.getManagedEnvironment();
     await this.setEnvironment(Region.SelfHosted, {

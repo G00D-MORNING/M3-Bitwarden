@@ -1,0 +1,41 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="autofill_service_label">M3 Bitwarden</string>
+    <string name="autofill_unlock_title">Tresor entsperren</string>
+    <string name="autofill_unlock_subtitle">Zum Ausfüllen entsperren</string>
+    <string name="autofill_unlock_prompt">Fingerabdruck, Gesicht oder Geräte-PIN</string>
+    <string name="autofill_confirm_subtitle">Vor dem Ausfüllen bestätigen</string>
+    <string name="autofill_search_title">Tresor durchsuchen</string>
+    <string name="autofill_search_subtitle">Alle Einträge anzeigen</string>
+    <string name="autofill_search_suggestion">Vorschlag: %1$s verknüpfen</string>
+    <string name="autofill_no_username">Ohne Benutzernamen</string>
+    <string name="autofill_insecure_subtitle">%1$s · unverschlüsselte Seite</string>
+    <string name="autofill_equivalent_subtitle">%1$s · gleichwertige Domain</string>
+    <string name="autofill_generate_title">Starkes Passwort erzeugen</string>
+    <string name="autofill_generate_subtitle">20 Zeichen, wird beim Absenden gespeichert</string>
+    <string name="autofill_picker_title">Anmelden bei %1$s</string>
+    <string name="autofill_search_hint">Tresor durchsuchen</string>
+    <string name="autofill_section_suggestions">Vorschläge</string>
+    <string name="autofill_section_matching">Passend</string>
+    <string name="autofill_section_possible">Vielleicht passend</string>
+    <string name="autofill_section_all">Alle Einträge</string>
+    <string name="autofill_confirm_heading">Bitte kurz prüfen</string>
+    <string name="autofill_confirm_webview">„%1$s“ zeigt eine Webseite von %2$s an. Fülle nur aus, wenn du der App vertraust.</string>
+    <string name="autofill_confirm_guess">„%2$s“ passt dem Namen nach zu „%1$s“, ist aber noch nicht verknüpft.</string>
+    <string name="autofill_link_title">Für %1$s merken</string>
+    <string name="autofill_link_body">Nächstes Mal sofort vorschlagen, auf allen Geräten</string>
+    <string name="autofill_cancel">Abbrechen</string>
+    <string name="autofill_fill">Ausfüllen</string>
+    <string name="autofill_suggest_heading">„%1$s“ mit %2$s verknüpfen?</string>
+    <string name="autofill_suggest_never">Nicht vorschlagen</string>
+    <string name="autofill_suggest_link">Verknüpfen</string>
+    <string name="autofill_save_title">Login für %1$s speichern?</string>
+    <string name="autofill_save_action">Speichern</string>
+    <string name="autofill_update_title">Passwort von „%1$s“ aktualisieren?</string>
+    <string name="autofill_update_body">Für %1$s wurde ein neues Passwort eingegeben.</string>
+    <string name="autofill_update_action">Aktualisieren</string>
+    <string name="autofill_reuse_title">„%1$s“ wiederverwenden?</string>
+    <string name="autofill_reuse_body">Diese Zugangsdaten gibt es schon. Sie werden mit %1$s verknüpft statt doppelt gespeichert.</string>
+    <string name="autofill_never_here">Nie hier</string>
+    <string name="autofill_not_now">Später</string>
+</resources>

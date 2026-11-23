@@ -1,0 +1,146 @@
+package com.framepersecond.m3bitwarden.autofill
+
+import com.framepersecond.m3bitwarden.autofill.match.Credential
+import com.framepersecond.m3bitwarden.autofill.match.CredentialKind
+import com.framepersecond.m3bitwarden.autofill.match.LearnedLink
+import com.framepersecond.m3bitwarden.autofill.match.LoginUri
+import com.framepersecond.m3bitwarden.data.DemoTotp
+import com.framepersecond.m3bitwarden.data.ItemType
+import com.framepersecond.m3bitwarden.data.VaultItem
+import com.framepersecond.m3bitwarden.data.VaultSession
+
+/** Device-local autofill memory: confirmed links and suggestions the user dismissed. */
+interface AutofillStore {
+    fun learnedLinks(): List<LearnedLink>
+    fun addLearnedLink(link: LearnedLink)
+    fun dismissed(): Set<String>
+    fun dismiss(key: String)
+    fun usage(): Map<String, Pair<Long, Int>>
+    fun recordUse(itemId: String, epochMs: Long)
+}
+
+class InMemoryAutofillStore : AutofillStore {
+    private val links = mutableListOf<LearnedLink>()
+    private val dismissedKeys = mutableSetOf<String>()
+    private val uses = mutableMapOf<String, Pair<Long, Int>>()
+    override fun learnedLinks() = links.toList()
+    override fun addLearnedLink(link: LearnedLink) { links += link }
+    override fun dismissed() = dismissedKeys.toSet()
+    override fun dismiss(key: String) { dismissedKeys += key }
+    override fun usage() = uses.toMap()
+    override fun recordUse(itemId: String, epochMs: Long) {
+        uses[itemId] = epochMs to ((uses[itemId]?.second ?: 0) + 1)
+    }
+}
+
+/**
+ * Connects the vault to the autofill engine: hands out metadata for matching and resolves
+ * secrets only for the one item the user picked. Secrets are never cached here.
+ */
+class AutofillVault(private val store: AutofillStore) {
+
+    val isUnlocked: Boolean get() = VaultSession.isUnlocked
+
+    fun credentials(): List<Credential> {
+        val usage = store.usage()
+        return VaultSession.repository.items.mapNotNull { item ->
+            val kind = when (item.type) {
+                ItemType.Login -> CredentialKind.Login
+                ItemType.Card -> CredentialKind.Card
+                ItemType.Identity -> CredentialKind.Identity
+                else -> return@mapNotNull null
+            }
+            val use = usage[item.id]
+            Credential(
+                id = item.id,
+                name = item.name,
+                kind = kind,
+                username = item.login?.username.orEmpty(),
+                uris = item.login?.allUris.orEmpty().map { LoginUri(it) },
+                favorite = item.favorite,
+                hasTotp = item.login?.totpSecret != null,
+                lastUsedEpochMs = use?.first,
+                useCount = use?.second ?: 0,
+            )
+        }
+    }
+
+    fun item(id: String): VaultItem? = VaultSession.repository.get(id)
+
+    /** The value for one field of the picked item. [otpDigitIndex] selects one digit of a split code. */
+    fun value(id: String, kind: ValueKind, epochSeconds: Long, otpDigitIndex: Int = -1): String? {
+        val item = item(id) ?: return null
+        val login = item.login
+        val card = item.card
+        val identity = item.identity
+        val v = when (kind) {
+            ValueKind.Username -> login?.username ?: identity?.email
+            ValueKind.Password -> login?.password
+            ValueKind.Totp -> login?.totpSecret?.let { totp(it, epochSeconds) }
+            ValueKind.CardNumber -> card?.number
+            ValueKind.CardHolder -> card?.cardholder
+            ValueKind.CardExpiry -> card?.let { "${it.expMonth}/${it.expYear.takeLast(2)}" }
+            ValueKind.CardExpiryMonth -> card?.expMonth
+            ValueKind.CardExpiryYear -> card?.expYear
+            ValueKind.CardCvv -> card?.code
+            ValueKind.FullName -> identity?.fullName ?: card?.cardholder
+            ValueKind.FirstName -> identity?.fullName?.substringBefore(' ')
+            ValueKind.LastName -> identity?.fullName?.substringAfterLast(' ')
+            ValueKind.Email -> identity?.email ?: login?.username?.takeIf { '@' in it }
+            ValueKind.Phone -> identity?.phone
+            ValueKind.Address -> identity?.address?.lineSequence()?.firstOrNull()
+            ValueKind.PostalCode -> identity?.address?.let { Regex("\\b\\d{4,5}\\b").find(it)?.value }
+            ValueKind.City -> identity?.address?.let { Regex("\\b\\d{4,5}\\s+([^,\\n]+)").find(it)?.groupValues?.get(1)?.trim() }
+            ValueKind.Country -> null
+            ValueKind.Organization -> identity?.company
+        }?.takeIf { it.isNotEmpty() } ?: return null
+        return if (otpDigitIndex >= 0) v.getOrNull(otpDigitIndex)?.toString() else v
+    }
+
+    /** Real codes come from the backend (Bitwarden SDK); the demo generator is only for sample data. */
+    private fun totp(secret: String, epochSeconds: Long): String? {
+        val backend = VaultSession.backend ?: return DemoTotp.code(secret, epochSeconds)
+        return backend.totpCode(secret, epochSeconds)
+    }
+
+    /** Constant-time comparison so timing does not reveal how much of a password matched. */
+    fun passwordEquals(id: String, candidate: String): Boolean {
+        val stored = item(id)?.login?.password ?: return false
+        if (stored.length != candidate.length) return false
+        var diff = 0
+        for (i in stored.indices) diff = diff or (stored[i].code xor candidate[i].code)
+        return diff == 0
+    }
+
+    fun recordUse(id: String, epochMs: Long) = store.recordUse(id, epochMs)
+
+    /** Adds a website or app URI to the item; with a backend it is encrypted and uploaded. */
+    fun addUri(id: String, uri: String) {
+        val item = item(id) ?: return
+        val login = item.login ?: return
+        if (login.allUris.any { it.equals(uri, ignoreCase = true) }) return
+        VaultSession.repository.save(item.copy(login = login.copy(additionalUris = login.additionalUris + uri)))
+    }
+
+    fun updatePassword(id: String, password: String) {
+        val item = item(id) ?: return
+        val login = item.login ?: return
+        VaultSession.repository.save(item.copy(login = login.copy(password = password)))
+    }
+
+    fun saveNew(name: String, username: String, password: String, uri: String?): String =
+        VaultSession.repository.save(
+            VaultItem(
+                id = "",
+                name = name,
+                type = ItemType.Login,
+                login = com.framepersecond.m3bitwarden.data.LoginData(username = username, password = password, uri = uri.orEmpty()),
+                updatedLabel = "Gerade gespeichert",
+            ),
+        ).id
+
+    fun learnedLinks() = store.learnedLinks()
+    fun addLearnedLink(link: LearnedLink) = store.addLearnedLink(link)
+    fun dismissed() = store.dismissed()
+    fun dismiss(key: String) = store.dismiss(key)
+}

@@ -647,6 +647,8 @@ export default class RuntimeBackground {
 
             if (await this.environmentService.hasManagedEnvironment()) {
               await this.environmentService.setUrlsToManagedEnvironment();
+            } else {
+              await this.environmentService.setUrlsToBuildDefault();
             }
             await this.browserInitialInstallService.setExtensionInstalled(true);
           }
