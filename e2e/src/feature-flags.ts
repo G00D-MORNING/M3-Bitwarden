@@ -7,7 +7,6 @@ export const FeatureFlag = Object.freeze({
   SharedUnlock: "innovation-sprint-shared-unlock-part-2",
   // Registers the web ↔ extension IPC content script; read once when the extension starts.
   ContentScriptIpc: "content-script-ipc-channel-framework",
-  BiometricsSdkIpc: "biometrics-sdk-ipc",
 } as const);
 export type FeatureFlag = (typeof FeatureFlag)[keyof typeof FeatureFlag];
 
