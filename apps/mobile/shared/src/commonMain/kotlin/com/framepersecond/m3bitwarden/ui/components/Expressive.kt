@@ -199,8 +199,8 @@ fun ListRow(
             .clip(shape)
             .background(MaterialTheme.colorScheme.surface)
             .then(if (onClick != null && enabled) Modifier.clickable(onClick = onClick) else Modifier)
-            .defaultMinSize(minHeight = 64.dp)
-            .padding(horizontal = 16.dp, vertical = 10.dp),
+            .defaultMinSize(minHeight = 72.dp)
+            .padding(start = 16.dp, end = 12.dp, top = 14.dp, bottom = 14.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
         if (icon != null) {
@@ -209,9 +209,12 @@ fun ListRow(
             }
             Spacer(Modifier.width(16.dp))
         }
-        Column(Modifier.weight(1f)) {
+        // Room to breathe: headline and one-line subtitle, the trailing control kept apart.
+        Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
             Text(
                 headline,
+                maxLines = 1,
+                overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis,
                 style = MaterialTheme.typography.bodyLarge,
                 color = when {
                     destructive -> MaterialTheme.colorScheme.error
@@ -220,11 +223,11 @@ fun ListRow(
                 },
             )
             if (!supporting.isNullOrEmpty()) {
-                Text(supporting, style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                Text(supporting, style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant, maxLines = 2, overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis)
             }
         }
         if (trailing != null) {
-            Spacer(Modifier.width(8.dp))
+            Spacer(Modifier.width(12.dp))
             trailing()
         }
     }

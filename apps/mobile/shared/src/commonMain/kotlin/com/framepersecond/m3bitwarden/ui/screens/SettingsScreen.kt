@@ -95,8 +95,8 @@ fun SettingsScreen(state: AppState, contentPadding: PaddingValues, platformSetti
             val rows = buildList<@Composable (androidx.compose.ui.graphics.Shape) -> Unit> {
                 if (backend != null) {
                     add { s -> ListRow("Jetzt synchronisieren", s, supporting = VaultSession.syncStatus.ifEmpty { "Holt den aktuellen Stand vom Server" }, icon = Symbols.Sync, onClick = { backend.refresh() }) }
-                    add { s -> ListRow("Server", s, supporting = "${VaultSession.accountServer} · nur mit Gerätezertifikat erreichbar", icon = Symbols.Language) }
-                    add { s -> ListRow("Verschlüsselung", s, supporting = "Offizielles Bitwarden-SDK, Ende-zu-Ende verschlüsselt", icon = Symbols.VerifiedUser) }
+                    add { s -> ListRow("Server", s, supporting = "${VaultSession.accountServer} · mit Gerätezertifikat", icon = Symbols.Language) }
+                    add { s -> ListRow("Verschlüsselung", s, supporting = "Bitwarden-SDK, Ende-zu-Ende", icon = Symbols.VerifiedUser) }
                 }
                 add { s -> ListRow("Ordner", s, supporting = "${state.vault.folders.size} Ordner", icon = Symbols.Folder, onClick = { state.open(Route.Folders) }) { Icon(Symbols.ChevronRight, null) } }
             }
@@ -104,7 +104,7 @@ fun SettingsScreen(state: AppState, contentPadding: PaddingValues, platformSetti
         }
 
         Section("Sicherheit") {
-            SwitchRow("Mit $biometricName entsperren", biometric, segmentShape(0, 3), supporting = "Statt Master-Passwort beim Öffnen", icon = Symbols.Fingerprint, enabled = backend != null) {
+            SwitchRow("Mit $biometricName entsperren", biometric, segmentShape(0, 3), supporting = "Statt Master-Passwort", icon = Symbols.Fingerprint, enabled = backend != null) {
                 biometric = it
                 backend?.setBiometricUnlock(it)
             }
@@ -113,7 +113,7 @@ fun SettingsScreen(state: AppState, contentPadding: PaddingValues, platformSetti
         }
 
         Section("Automatisch ausfüllen") {
-            SwitchRow("Bestätigungscode kopieren", settings.copyTotpAutomatically, segmentShape(0, 1), supporting = "Nach dem Ausfüllen eines Logins", icon = Symbols.Timer) {
+            SwitchRow("Bestätigungscode kopieren", settings.copyTotpAutomatically, segmentShape(0, 1), supporting = "Nach dem Ausfüllen", icon = Symbols.Timer) {
                 settings.updateCopyTotpAutomatically(it)
             }
             platformSettings()
@@ -158,7 +158,7 @@ fun SettingsScreen(state: AppState, contentPadding: PaddingValues, platformSetti
                 }
                 Text("Website-Symbole kommen über den Icon-Dienst deines Vaultwarden (das Gerät spricht nur mit deinem Server) und liegen nur im Arbeitsspeicher. ${Brands.all.size} Markenlogos sind zusätzlich in der App enthalten.", style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
             }
-            SwitchRow("Logos anzeigen", settings.showLogos, segmentShape(1, 2), supporting = "Website-Symbole statt Anfangsbuchstaben", icon = Symbols.Apps) { settings.updateShowLogos(it) }
+            SwitchRow("Logos anzeigen", settings.showLogos, segmentShape(1, 2), supporting = "Statt Anfangsbuchstaben", icon = Symbols.Apps) { settings.updateShowLogos(it) }
         }
 
         Section("Info") {

@@ -73,7 +73,7 @@ struct GlassChrome: View {
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .bottom)
         .ignoresSafeArea(.keyboard)
-        .animation(spring, value: snap)
+        .animation(Self.tabMotion, value: snap)
         .animation(spring, value: menuOpen)
         .onChange(of: snap?.onTabs) { _, onTabs in if onTabs != true { closeMenu(animated: false) } }
         .onChange(of: snap?.tab) { _, _ in closeMenu(animated: false) }
@@ -117,15 +117,21 @@ struct GlassChrome: View {
             }
             // Prototype: the bar spans the width, tabs evenly spread; scrolling shrinks it to the
             // selected tab.
-            HStack(spacing: 2) {
+            // The selected tab takes the free width and its pill fills exactly that slot; the
+            // others keep a fixed 84 pt (as in the prototype). Nothing is wider than its slot, so the pill never runs
+            // past the bar, and one smooth animation (no overshoot) moves pill, label and icons.
+            HStack(spacing: 4) {
                 ForEach(tabs.indices, id: \.self) { i in
                     if !compact || i == selected {
                         tabButton(i, selected: i == selected, showLabel: !compact)
-                            .frame(maxWidth: compact ? nil : .infinity)
+                            .frame(width: compact || i == selected ? nil : 84)
+                            .frame(maxWidth: !compact && i == selected ? .infinity : nil)
                     }
                 }
             }
             .padding(6)
+            .animation(Self.tabMotion, value: selected)
+            .animation(Self.tabMotion, value: compact)
             .frame(maxWidth: compact ? nil : .infinity)
             .glassEffect(.regular.interactive(), in: .capsule)
             .glassEffectID("bar", in: glass)
@@ -171,24 +177,35 @@ struct GlassChrome: View {
             HStack(spacing: 8) {
                 Image(systemName: selected ? tab.selectedSymbol : tab.symbol)
                     .font(.system(size: 19, weight: .semibold))
+                    .frame(width: 24, height: 24)
+                    .contentTransition(.symbolEffect(.replace.downUp))
                 if selected && showLabel {
-                    Text(tab.label).font(.system(size: 15, weight: .bold)).lineLimit(1).fixedSize()
+                    Text(tab.label)
+                        .font(.system(size: 15, weight: .bold))
+                        .lineLimit(1)
+                        .minimumScaleFactor(0.75)
+                        .transition(.opacity.combined(with: .scale(scale: 0.9, anchor: .leading)))
                 }
             }
-            .padding(.horizontal, selected && showLabel ? 18 : 14)
-            .frame(minWidth: 48, minHeight: 48)
+            .padding(.horizontal, 14)
+            .frame(maxWidth: selected && showLabel ? .infinity : nil, minHeight: 48)
+            .frame(minWidth: 48)
             .foregroundStyle(selected ? M3.onSecondaryContainer : M3.onSurface)
             .background {
                 if selected {
                     Capsule().fill(M3.secondaryContainer).matchedGeometryEffect(id: "pill", in: glass)
                 }
             }
+            .clipShape(Capsule())
             .contentShape(Capsule())
         }
         .buttonStyle(.plain)
         .accessibilityLabel(tab.label)
         .accessibilityAddTraits(selected ? .isSelected : [])
     }
+
+    /// Tab bar: one calm, even motion for pill, label and icons (no overshoot past the bar).
+    private static let tabMotion = Animation.smooth(duration: 0.32)
 
     /// M3 Expressive "fast spatial": 394 ms with about 9 % overshoot (the prototype's curve).
     private static let spatialFast = Animation.spring(duration: 0.394, bounce: 0.28)
