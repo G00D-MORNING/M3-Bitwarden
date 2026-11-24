@@ -121,26 +121,52 @@ struct M3Field: View {
     }
 }
 
-/// Pill buttons in the M3 Expressive sizes; the corners tighten while pressed.
+/// Pill buttons in the M3 Expressive sizes; the corners tighten while pressed. On iOS 26 and later
+/// filled and tonal buttons are Liquid Glass (filled: tinted in the primary color).
 struct M3ButtonStyle: ButtonStyle {
     enum Kind { case filled, tonal, text }
     var kind: Kind = .filled
     var height: CGFloat = 56
 
     func makeBody(configuration: Configuration) -> some View {
-        let (bg, fg): (Color, Color) = switch kind {
-        case .filled: (M3.primary, M3.onPrimary)
-        case .tonal: (M3.secondaryContainer, M3.onSecondaryContainer)
-        case .text: (.clear, M3.primary)
+        M3ButtonBody(configuration: configuration, kind: kind, height: height)
+    }
+}
+
+private struct M3ButtonBody: View {
+    let configuration: ButtonStyleConfiguration
+    let kind: M3ButtonStyle.Kind
+    let height: CGFloat
+    @Environment(\.isEnabled) private var isEnabled
+
+    var body: some View {
+        let pressed = configuration.isPressed
+        let shape = RoundedRectangle(cornerRadius: pressed ? 12 : height / 2, style: .continuous)
+        let fg: Color = switch kind {
+        case .filled: M3.onPrimary
+        case .tonal: M3.onSecondaryContainer
+        case .text: M3.primary
         }
-        return configuration.label
+        let label = configuration.label
             .font(.system(size: height >= 56 ? 17 : 15, weight: .semibold))
             .frame(maxWidth: kind == .text ? nil : .infinity, minHeight: height)
             .padding(.horizontal, 20)
             .foregroundStyle(fg)
-            .background(bg, in: RoundedRectangle(cornerRadius: configuration.isPressed ? 12 : height / 2, style: .continuous))
-            .scaleEffect(configuration.isPressed ? 0.97 : 1)
-            .animation(.spring(response: 0.3, dampingFraction: 0.6), value: configuration.isPressed)
+            .contentShape(shape)
+        Group {
+            switch kind {
+            case .filled: label.m3Glass(tint: isEnabled ? M3.primary : M3.onSurface.opacity(0.25), in: shape, fallback: M3.primary)
+            case .tonal: label.m3Glass(tint: glassAvailable ? nil : M3.secondaryContainer, in: shape, fallback: M3.secondaryContainer)
+            case .text: label
+            }
+        }
+        .opacity(isEnabled ? 1 : 0.6)
+        .scaleEffect(pressed ? 0.97 : 1)
+        .animation(.spring(response: 0.3, dampingFraction: 0.6), value: pressed)
+    }
+
+    private var glassAvailable: Bool {
+        if #available(iOS 26, *) { true } else { false }
     }
 }
 

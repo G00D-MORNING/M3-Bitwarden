@@ -1,5 +1,30 @@
 package com.framepersecond.m3bitwarden.ui.screens
 
+import androidx.compose.animation.AnimatedContent
+import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.core.LinearEasing
+import androidx.compose.animation.core.MutableTransitionState
+import androidx.compose.animation.core.animateIntAsState
+import androidx.compose.animation.core.spring
+import androidx.compose.animation.core.tween
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.scaleIn
+import androidx.compose.animation.scaleOut
+import androidx.compose.animation.slideInVertically
+import androidx.compose.animation.togetherWith
+import androidx.compose.ui.text.AnnotatedString
+import androidx.compose.ui.text.TextStyle
+import com.framepersecond.m3bitwarden.ChromeAction
+import com.framepersecond.m3bitwarden.HideNativeChrome
+import com.framepersecond.m3bitwarden.NativeChrome
+import com.framepersecond.m3bitwarden.PublishNativeToolbar
+import com.framepersecond.m3bitwarden.ui.CopyButton
+import com.framepersecond.m3bitwarden.ui.RollingText
+import com.framepersecond.m3bitwarden.ui.hero
+import com.framepersecond.m3bitwarden.ui.revealText
+import com.framepersecond.m3bitwarden.ui.components.colorize
+import com.framepersecond.m3bitwarden.ui.theme.PasswordColors
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -23,7 +48,6 @@ import androidx.compose.material3.Button
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.FilledIconButton
-import androidx.compose.material3.FilledTonalIconButton
 import androidx.compose.material3.FloatingToolbarDefaults
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.HorizontalFloatingToolbar
@@ -274,7 +298,10 @@ fun DetailScreen(state: AppState, id: String) {
             onDismissRequest = { confirmDelete = false },
             icon = { Icon(Symbols.Delete, null) },
             title = { Text("Eintrag löschen?") },
-            text = { Text("„${item.name}“ wird in den Papierkorb verschoben und lässt sich in der Weboberfläche 30 Tage lang wiederherstellen.") },
+            text = {
+                HideNativeChrome()
+                Text("„${item.name}“ wird in den Papierkorb verschoben und lässt sich in der Weboberfläche 30 Tage lang wiederherstellen.")
+            },
             confirmButton = {
                 TextButton(onClick = {
                     confirmDelete = false
@@ -310,7 +337,7 @@ private fun FolderMenu(state: AppState, item: VaultItem, open: Boolean, onClose:
 private fun Header(item: VaultItem, state: AppState, onFolder: () -> Unit) {
     Column(Modifier.fillMaxWidth().padding(top = 8.dp, bottom = 4.dp), horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(12.dp)) {
         val brand = if (AppSettings.showLogos) Brands.forItem(item) else null
-        SpinningShape(item.type.polygon, item.type.containerColor, 128.dp) {
+        SpinningShape(item.type.polygon, item.type.containerColor, 128.dp, modifier = Modifier.hero("${state.heroSource}-tile-${item.id}")) {
             if (brand != null) {
                 Box(
                     Modifier.size(72.dp).shadow(6.dp, RoundedCornerShape(24.dp)).clip(RoundedCornerShape(24.dp)).background(Color(brand.bg)),
@@ -320,7 +347,7 @@ private fun Header(item: VaultItem, state: AppState, onFolder: () -> Unit) {
                 Text(item.name.trim().firstOrNull()?.uppercase() ?: "?", style = MaterialTheme.typography.displayMediumEmphasized, color = item.type.contentColor)
             }
         }
-        Text(item.name, style = MaterialTheme.typography.headlineMediumEmphasized, textAlign = TextAlign.Center)
+        Text(item.name, style = MaterialTheme.typography.headlineMediumEmphasized, textAlign = TextAlign.Center, modifier = Modifier.hero("${state.heroSource}-name-${item.id}"))
         ConnectedGroup(
             listOf(
                 GroupOption(item.type.short, item.type.icon, false) { if (item.editable) state.open(Route.Edit(item.id, item.type)) },
@@ -345,17 +372,15 @@ private fun TotpCard(secret: String, onCopy: (String) -> Unit) {
     ) {
         Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
             Text("Bestätigungscode", style = MaterialTheme.typography.labelLarge, color = MaterialTheme.colorScheme.onPrimaryContainer)
-            Text(
-                code?.let { if (it.length == 6) it.take(3) + " " + it.drop(3) else it } ?: "Ungültiger Schlüssel",
-                fontFamily = FontFamily.Monospace,
-                fontSize = 32.sp,
-                lineHeight = 40.sp,
-                fontWeight = FontWeight.Medium,
-                letterSpacing = 2.sp,
-                color = MaterialTheme.colorScheme.onPrimaryContainer,
-                maxLines = 1,
-                softWrap = false,
-            )
+            if (code == null) {
+                Text("Ungültiger Schlüssel", style = MaterialTheme.typography.titleLarge, color = MaterialTheme.colorScheme.onPrimaryContainer)
+            } else {
+                RollingText(
+                    if (code.length == 6) code.take(3) + " " + code.drop(3) else code,
+                    style = TextStyle(fontFamily = FontFamily.Monospace, fontSize = 32.sp, lineHeight = 40.sp, fontWeight = FontWeight.Medium, letterSpacing = 2.sp),
+                    color = MaterialTheme.colorScheme.onPrimaryContainer,
+                )
+            }
         }
         WavyRing(left / period.toFloat(), "$left", 48.dp, color = if (left <= 5) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.primary, textColor = MaterialTheme.colorScheme.onPrimaryContainer)
         FilledIconButton(onClick = { code?.let(onCopy) }, enabled = code != null, modifier = Modifier.size(48.dp)) { Icon(Symbols.ContentCopy, "Code kopieren") }
@@ -366,6 +391,10 @@ private fun TotpCard(secret: String, onCopy: (String) -> Unit) {
 private fun FieldRow(f: DetailField, shape: Shape) {
     val copy = LocalCopy.current
     var revealed by remember(f.value) { mutableStateOf(false) }
+    // Reveal sweeps over the value from left to right instead of swapping it at once.
+    val shown by animateIntAsState(if (revealed) f.value.length else 0, tween((f.value.length * 18).coerceIn(160, 420), easing = LinearEasing))
+    val digit = PasswordColors.digit
+    val symbol = PasswordColors.symbol
     Row(
         Modifier.fillMaxWidth().clip(shape).background(MaterialTheme.colorScheme.surface).defaultMinSize(minHeight = 64.dp).padding(start = 20.dp, end = 4.dp, top = 10.dp, bottom = 10.dp),
         verticalAlignment = Alignment.CenterVertically,
@@ -374,27 +403,31 @@ private fun FieldRow(f: DetailField, shape: Shape) {
         Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
             Text(f.label, style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
             when {
-                f.secret && !revealed -> Text("•".repeat(f.value.length.coerceIn(8, 14)), style = MaterialTheme.typography.bodyLarge)
+                f.secret && !revealed && shown == 0 -> Text("•".repeat(f.value.length.coerceIn(8, 14)), style = MaterialTheme.typography.bodyLarge)
+                f.secret && shown < f.value.length -> Text(
+                    revealText(f.value, shown) { if (f.password) colorize(it, digit, symbol) else AnnotatedString(it) },
+                    style = MaterialTheme.typography.bodyLarge.copy(fontFamily = if (f.password || f.mono) FontFamily.Monospace else null),
+                )
                 f.password -> Text(colorizedPassword(f.value), fontFamily = FontFamily.Monospace, fontSize = 16.sp, lineHeight = 24.sp)
                 else -> Text(f.value, style = MaterialTheme.typography.bodyLarge.copy(fontFamily = if (f.mono) FontFamily.Monospace else null))
             }
             if (f.password) WavyStrength(PasswordGenerator.estimateBits(f.value), Modifier.padding(top = 6.dp, end = 12.dp))
         }
         if (f.secret) {
-            IconToggleButton(checked = revealed, onCheckedChange = { revealed = it }) {
-                Icon(if (revealed) Symbols.VisibilityOff else Symbols.Visibility, if (revealed) "Verbergen" else "Anzeigen")
+            IconToggleButton(checked = revealed, onCheckedChange = { revealed = it }, shapes = IconButtonDefaults.toggleableShapes()) {
+                AnimatedContent(revealed, transitionSpec = { (scaleIn(spring(dampingRatio = 0.5f, stiffness = 500f), initialScale = 0.5f) + fadeIn()) togetherWith (scaleOut(targetScale = 0.5f) + fadeOut()) }, label = "eye") { r ->
+                    Icon(if (r) Symbols.VisibilityOff else Symbols.Visibility, if (r) "Verbergen" else "Anzeigen")
+                }
             }
         }
         if (f.url != null) IconButton(onClick = { openUrl(f.url) }) { Icon(Symbols.OpenInNew, "Website öffnen") }
         if (f.copyLabel != null) {
-            FilledTonalIconButton(onClick = { copy(f.copyLabel, if (f.label == "Kartennummer") f.value.replace(" ", "") else f.value, f.secret) }) {
-                Icon(Symbols.ContentCopy, "${f.copyLabel} kopieren")
-            }
+            CopyButton("${f.copyLabel} kopieren", { copy(f.copyLabel, if (f.label == "Kartennummer") f.value.replace(" ", "") else f.value, f.secret) })
         }
     }
 }
 
-private data class ToolAction(val icon: ImageVector, val label: String, val enabled: Boolean, val run: () -> Unit)
+private data class ToolAction(val icon: ImageVector, val symbol: String, val label: String, val enabled: Boolean, val run: () -> Unit)
 
 @Composable
 private fun Toolbar(item: VaultItem, state: AppState, modifier: Modifier) {
@@ -403,37 +436,55 @@ private fun Toolbar(item: VaultItem, state: AppState, modifier: Modifier) {
         when (item.type) {
             ItemType.Login -> {
                 val l = item.login
-                add(ToolAction(Symbols.Person, "Benutzername kopieren", !l?.username.isNullOrEmpty()) { copy("Benutzername", l!!.username, false) })
-                add(ToolAction(Symbols.Key, "Passwort kopieren", !l?.password.isNullOrEmpty()) { copy("Passwort", l!!.password, true) })
-                l?.allUris?.firstOrNull { it.startsWith("http") }?.let { url -> add(ToolAction(Symbols.OpenInNew, "Website öffnen", true) { openUrl(url) }) }
+                add(ToolAction(Symbols.Person, "person.fill", "Benutzername kopieren", !l?.username.isNullOrEmpty()) { copy("Benutzername", l!!.username, false) })
+                add(ToolAction(Symbols.Key, "key.fill", "Passwort kopieren", !l?.password.isNullOrEmpty()) { copy("Passwort", l!!.password, true) })
+                l?.allUris?.firstOrNull { it.startsWith("http") }?.let { url -> add(ToolAction(Symbols.OpenInNew, "safari.fill", "Website öffnen", true) { openUrl(url) }) }
             }
             ItemType.Card -> {
                 val c = item.card
-                add(ToolAction(Symbols.CreditCard, "Kartennummer kopieren", !c?.number.isNullOrEmpty()) { copy("Kartennummer", c!!.number, true) })
-                add(ToolAction(Symbols.Pin, "Sicherheitscode kopieren", !c?.code.isNullOrEmpty()) { copy("Sicherheitscode", c!!.code, true) })
+                add(ToolAction(Symbols.CreditCard, "creditcard.fill", "Kartennummer kopieren", !c?.number.isNullOrEmpty()) { copy("Kartennummer", c!!.number, true) })
+                add(ToolAction(Symbols.Pin, "number", "Sicherheitscode kopieren", !c?.code.isNullOrEmpty()) { copy("Sicherheitscode", c!!.code, true) })
             }
-            ItemType.SshKey -> add(ToolAction(Symbols.KeyVertical, "Öffentlichen Schlüssel kopieren", !item.sshKey?.publicKey.isNullOrEmpty()) { copy("Öffentlicher Schlüssel", item.sshKey!!.publicKey, false) })
+            ItemType.SshKey -> add(ToolAction(Symbols.KeyVertical, "key.horizontal.fill", "Öffentlichen Schlüssel kopieren", !item.sshKey?.publicKey.isNullOrEmpty()) { copy("Öffentlicher Schlüssel", item.sshKey!!.publicKey, false) })
             ItemType.Identity -> {
                 val i = item.identity
-                add(ToolAction(Symbols.Mail, "E-Mail kopieren", !i?.email.isNullOrEmpty()) { copy("E-Mail", i!!.email, false) })
-                add(ToolAction(Symbols.Home, "Adresse kopieren", !i?.address.isNullOrEmpty()) { copy("Adresse", i!!.address, false) })
+                add(ToolAction(Symbols.Mail, "envelope.fill", "E-Mail kopieren", !i?.email.isNullOrEmpty()) { copy("E-Mail", i!!.email, false) })
+                add(ToolAction(Symbols.Home, "house.fill", "Adresse kopieren", !i?.address.isNullOrEmpty()) { copy("Adresse", i!!.address, false) })
             }
-            ItemType.Note -> add(ToolAction(Symbols.ContentCopy, "Inhalt kopieren", item.notes.isNotEmpty()) { copy("Notiz", item.notes, true) })
+            ItemType.Note -> add(ToolAction(Symbols.ContentCopy, "doc.on.doc.fill", "Inhalt kopieren", item.notes.isNotEmpty()) { copy("Notiz", item.notes, true) })
         }
     }
-    HorizontalFloatingToolbar(
-        expanded = true,
-        colors = FloatingToolbarDefaults.vibrantFloatingToolbarColors(),
-        floatingActionButton = {
-            FloatingToolbarDefaults.VibrantFloatingActionButton(onClick = { if (item.editable) state.open(Route.Edit(item.id, item.type)) }) {
-                Icon(Symbols.Edit, "Bearbeiten")
-            }
-        },
+    val edit = { if (item.editable) state.open(Route.Edit(item.id, item.type)) }
+
+    if (NativeChrome.enabled) {
+        // iOS 26+: drawn as a Liquid Glass toolbar by the app.
+        PublishNativeToolbar(
+            actions = actions.mapIndexed { i, a -> ChromeAction("a$i", a.label, a.symbol, a.enabled) },
+            primary = if (item.editable) ChromeAction("edit", "Bearbeiten", "pencil") else null,
+        ) { id -> if (id == "edit") edit() else actions.getOrNull(id.drop(1).toIntOrNull() ?: -1)?.run?.invoke() }
+        return
+    }
+
+    // Rises from the bottom edge when the page opens.
+    val shown = remember { MutableTransitionState(false).apply { targetState = true } }
+    AnimatedVisibility(
+        shown,
+        enter = slideInVertically(spring(dampingRatio = 0.7f, stiffness = 380f)) { it * 2 } + fadeIn(tween(200, delayMillis = 80)),
         modifier = modifier,
     ) {
-        actions.forEach { a ->
-            IconButton(onClick = a.run, enabled = a.enabled, colors = IconButtonDefaults.iconButtonColors(contentColor = MaterialTheme.colorScheme.onPrimaryContainer)) {
-                Icon(a.icon, a.label)
+        HorizontalFloatingToolbar(
+            expanded = true,
+            colors = FloatingToolbarDefaults.vibrantFloatingToolbarColors(),
+            floatingActionButton = {
+                FloatingToolbarDefaults.VibrantFloatingActionButton(onClick = edit) {
+                    Icon(Symbols.Edit, "Bearbeiten")
+                }
+            },
+        ) {
+            actions.forEach { a ->
+                IconButton(onClick = a.run, enabled = a.enabled, shapes = IconButtonDefaults.shapes(), colors = IconButtonDefaults.iconButtonColors(contentColor = MaterialTheme.colorScheme.onPrimaryContainer)) {
+                    Icon(a.icon, a.label)
+                }
             }
         }
     }

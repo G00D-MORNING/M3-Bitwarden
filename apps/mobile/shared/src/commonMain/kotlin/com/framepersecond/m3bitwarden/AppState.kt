@@ -149,6 +149,14 @@ class AppState(val vault: VaultRepository = VaultSession.repository) {
     val vaultListState = LazyListState()
     val generator = GeneratorState()
 
+    // Motion.
+    /** The user scrolls down: floating bars get out of the way. */
+    var chromeCompact by mutableStateOf(false)
+    /** Rows that already rose into place in this session (they do not animate again). */
+    val seenRows = HashSet<Any>()
+    /** Where the open item page came from ("row", "fav"), so its emblem grows out of the right tile. */
+    var heroSource by mutableStateOf("row")
+
     val snackbar = SnackbarHostState()
 
     /** Demo mode only: there is no real key, any non-empty password opens the sample vault. */
@@ -168,6 +176,13 @@ class AppState(val vault: VaultRepository = VaultSession.repository) {
         query = ""
         filter = VaultFilter.All
         folderFilter = null
+        chromeCompact = false
+    }
+
+    /** Opens an item page; [from] names the tile its emblem grows out of. */
+    fun openItem(id: String, from: String) {
+        heroSource = from
+        open(Route.Detail(id))
     }
 
     fun open(route: Route) {

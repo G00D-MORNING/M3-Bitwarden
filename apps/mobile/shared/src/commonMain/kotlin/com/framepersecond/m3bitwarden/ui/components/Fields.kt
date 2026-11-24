@@ -88,15 +88,16 @@ fun RowDivider() {
 fun colorizedPassword(text: String): AnnotatedString {
     val digit = PasswordColors.digit
     val symbol = PasswordColors.symbol
-    return remember(text, digit, symbol) {
-        buildAnnotatedString {
-            text.forEach { c ->
-                when {
-                    c.isDigit() -> withStyle(SpanStyle(color = digit)) { append(c) }
-                    !c.isLetterOrDigit() -> withStyle(SpanStyle(color = symbol)) { append(c) }
-                    else -> append(c)
-                }
-            }
+    return remember(text, digit, symbol) { colorize(text, digit, symbol) }
+}
+
+/** Non-composable form of [colorizedPassword], for text that is built while animating. */
+fun colorize(text: String, digit: Color, symbol: Color): AnnotatedString = buildAnnotatedString {
+    text.forEach { c ->
+        when {
+            c.isDigit() -> withStyle(SpanStyle(color = digit)) { append(c) }
+            !c.isLetterOrDigit() -> withStyle(SpanStyle(color = symbol)) { append(c) }
+            else -> append(c)
         }
     }
 }

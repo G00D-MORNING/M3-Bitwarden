@@ -36,6 +36,7 @@ kotlin {
                 optIn("androidx.compose.material3.ExperimentalMaterial3Api")
                 optIn("androidx.compose.material3.ExperimentalMaterial3ExpressiveApi")
                 optIn("kotlin.time.ExperimentalTime")
+                optIn("androidx.compose.animation.ExperimentalSharedTransitionApi")
             }
         }
         // Every iOS source set (iosMain, iosArm64Main, …) needs the same opt-ins.

@@ -1,6 +1,13 @@
 package com.framepersecond.m3bitwarden.ui.components
 
+import androidx.compose.animation.AnimatedContent
 import androidx.compose.animation.core.LinearEasing
+import androidx.compose.animation.core.spring
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.scaleIn
+import androidx.compose.animation.scaleOut
+import androidx.compose.animation.togetherWith
 import androidx.compose.animation.core.RepeatMode
 import androidx.compose.animation.core.animateFloat
 import androidx.compose.animation.core.infiniteRepeatable
@@ -162,7 +169,15 @@ fun ConnectedGroup(options: List<GroupOption>, modifier: Modifier = Modifier, fi
                 modifier = if (fill) Modifier.weight(1f) else Modifier,
             ) {
                 if (option.icon != null) {
-                    Icon(option.icon, null, Modifier.size(18.dp))
+                    // Icon changes (star ↔ filled star) pop with a bouncy spring.
+                    AnimatedContent(
+                        option.icon,
+                        transitionSpec = {
+                            (scaleIn(spring(dampingRatio = 0.4f, stiffness = 550f), initialScale = 0.4f) + fadeIn()) togetherWith
+                                (scaleOut(targetScale = 0.4f) + fadeOut(tween(90)))
+                        },
+                        label = "groupIcon",
+                    ) { icon -> Icon(icon, null, Modifier.size(18.dp)) }
                     if (option.label.isNotEmpty()) Spacer(Modifier.width(8.dp))
                 }
                 if (option.label.isNotEmpty()) Text(option.label, maxLines = 1, overflow = TextOverflow.Ellipsis)

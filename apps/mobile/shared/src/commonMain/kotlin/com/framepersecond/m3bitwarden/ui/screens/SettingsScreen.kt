@@ -36,6 +36,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.unit.dp
 import com.framepersecond.m3bitwarden.AppSettings
 import com.framepersecond.m3bitwarden.AppState
+import com.framepersecond.m3bitwarden.HideNativeChrome
 import com.framepersecond.m3bitwarden.Route
 import com.framepersecond.m3bitwarden.ThemeMode
 import com.framepersecond.m3bitwarden.VaultTimeout
@@ -187,7 +188,7 @@ fun SettingsScreen(state: AppState, contentPadding: PaddingValues, platformSetti
     if (confirmLogout) {
         AlertDialog(
             onDismissRequest = { confirmLogout = false },
-            icon = { Icon(Symbols.Logout, null) },
+            icon = { HideNativeChrome(); Icon(Symbols.Logout, null) },
             title = { Text("Abmelden?") },
             text = { Text("Konto, Schlüssel und Offline-Kopie des Tresors werden von diesem Gerät entfernt. Das Gerätezertifikat bleibt erhalten.") },
             confirmButton = {
@@ -222,7 +223,7 @@ private fun clipboardLabel(seconds: Int): String = when {
 private fun ChoiceDialog(title: String, text: String, icon: androidx.compose.ui.graphics.vector.ImageVector, options: List<String>, selected: Int, onDismiss: () -> Unit, onSelect: (Int) -> Unit) {
     AlertDialog(
         onDismissRequest = onDismiss,
-        icon = { Icon(icon, null) },
+        icon = { HideNativeChrome(); Icon(icon, null) },
         title = { Text(title) },
         text = {
             Column {

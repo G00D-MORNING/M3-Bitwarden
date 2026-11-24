@@ -1,5 +1,33 @@
 package com.framepersecond.m3bitwarden.ui.screens
 
+import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.core.Spring
+import androidx.compose.animation.core.VisibilityThreshold
+import androidx.compose.animation.core.animateDpAsState
+import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.animation.core.spring
+import androidx.compose.animation.core.tween
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.scaleIn
+import androidx.compose.animation.scaleOut
+import androidx.compose.foundation.LocalIndication
+import androidx.compose.foundation.interaction.MutableInteractionSource
+import androidx.compose.foundation.interaction.collectIsPressedAsState
+import androidx.compose.foundation.lazy.LazyListScope
+import androidx.compose.material3.pulltorefresh.PullToRefreshBox
+import androidx.compose.material3.pulltorefresh.PullToRefreshDefaults
+import androidx.compose.material3.pulltorefresh.rememberPullToRefreshState
+import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.unit.Dp
+import androidx.compose.ui.unit.IntOffset
+import com.framepersecond.m3bitwarden.HideNativeChrome
+import com.framepersecond.m3bitwarden.NativeChrome
+import com.framepersecond.m3bitwarden.ui.hero
+import com.framepersecond.m3bitwarden.ui.riseIn
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.launch
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.horizontalScroll
@@ -150,60 +178,108 @@ fun VaultScreen(state: AppState, contentPadding: PaddingValues) {
     }
     var fabOpen by remember { mutableStateOf(false) }
     var securityOpen by remember { mutableStateOf(false) }
+    val scope = rememberCoroutineScope()
+    var demoRefreshing by remember { mutableStateOf(false) }
+    val refreshing = VaultSession.syncing || demoRefreshing
+    val pullState = rememberPullToRefreshState()
 
     Box(Modifier.fillMaxSize()) {
-        LazyColumn(
-            state = state.vaultListState,
-            contentPadding = PaddingValues(start = 16.dp, end = 16.dp, top = contentPadding.calculateTopPadding(), bottom = contentPadding.calculateBottomPadding() + 200.dp),
-            verticalArrangement = Arrangement.spacedBy(16.dp),
+        PullToRefreshBox(
+            isRefreshing = refreshing,
+            onRefresh = {
+                if (state.live) {
+                    VaultSession.backend?.refresh()
+                } else {
+                    scope.launch { demoRefreshing = true; delay(DEMO_REFRESH_MS); demoRefreshing = false }
+                }
+            },
+            state = pullState,
+            indicator = {
+                PullToRefreshDefaults.LoadingIndicator(
+                    state = pullState,
+                    isRefreshing = refreshing,
+                    modifier = Modifier.align(Alignment.TopCenter).padding(top = contentPadding.calculateTopPadding()),
+                )
+            },
             modifier = Modifier.fillMaxSize(),
         ) {
-            item(key = "header") { Header(state) }
-            item(key = "search") { SearchBar(state) }
-            item(key = "filters") { Filters(state) }
-            if (state.live && VaultSession.syncStatus == "Nicht aktualisiert") item(key = "offline") { OfflineBanner() }
-            if (report.findings.isNotEmpty() || state.vault.items.any { it.type == ItemType.Login }) {
-                item(key = "security") { SecurityCard(report) { securityOpen = true } }
-            }
-            if (favorites.isNotEmpty()) item(key = "favs") { Favorites(favorites, state) }
-            item(key = "listHead") { ListHeader(state, items.size, searching) }
-            if (items.isEmpty()) {
-                item(key = "empty") { Empty(state) }
-            } else {
-                item(key = "list") {
-                    Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
-                        items.forEachIndexed { i, item ->
-                            val host = item.login?.allUris?.firstOrNull()?.let(VaultItem::hostOf)
-                            VaultRow(item, listSubtitle(item, (hostCounts[host] ?: 0) > 1), segmentShape(i, items.size, outer = 24.dp), state)
-                        }
+            LazyColumn(
+                state = state.vaultListState,
+                contentPadding = PaddingValues(start = 16.dp, end = 16.dp, top = contentPadding.calculateTopPadding(), bottom = contentPadding.calculateBottomPadding() + 200.dp),
+                modifier = Modifier.fillMaxSize(),
+            ) {
+                block("header") { Header(state) }
+                block("search") { SearchBar(state) }
+                block("filters") { Filters(state) }
+                if (state.live && VaultSession.syncStatus == "Nicht aktualisiert") block("offline") { OfflineBanner() }
+                if (report.findings.isNotEmpty() || state.vault.items.any { it.type == ItemType.Login }) {
+                    block("security") { SecurityCard(report) { securityOpen = true } }
+                }
+                if (favorites.isNotEmpty()) block("favs") { Favorites(favorites, state) }
+                block("listHead", gap = 8.dp) { ListHeader(state, items.size, searching) }
+                if (items.isEmpty()) {
+                    block("empty") { Empty(state) }
+                } else {
+                    itemsIndexed(items, key = { _, item -> item.id }) { i, item ->
+                        val host = item.login?.allUris?.firstOrNull()?.let(VaultItem::hostOf)
+                        VaultRow(
+                            item = item,
+                            subtitle = listSubtitle(item, (hostCounts[host] ?: 0) > 1),
+                            index = i,
+                            count = items.size,
+                            state = state,
+                            modifier = Modifier
+                                .animateItem(
+                                    fadeInSpec = spring(stiffness = Spring.StiffnessMediumLow),
+                                    placementSpec = spring(dampingRatio = 0.8f, stiffness = 380f, visibilityThreshold = IntOffset.VisibilityThreshold),
+                                    fadeOutSpec = tween(120),
+                                )
+                                .padding(bottom = if (i < items.lastIndex) 2.dp else 0.dp)
+                                .riseIn(item.id, i, state.seenRows),
+                        )
                     }
                 }
             }
         }
 
-        FloatingActionButtonMenu(
-            expanded = fabOpen,
-            button = {
-                ToggleFloatingActionButton(checked = fabOpen, onCheckedChange = { fabOpen = it }) {
-                    Icon(if (checkedProgress > 0.5f) Symbols.Close else Symbols.Add, "Neuer Eintrag", Modifier.animateIcon({ checkedProgress }))
+        if (!NativeChrome.enabled) {
+            // Follows the navigation bar down when it tucks away.
+            val lift by animateDpAsState(if (state.chromeCompact) 16.dp else 88.dp, spring(dampingRatio = 0.7f, stiffness = 400f))
+            FloatingActionButtonMenu(
+                expanded = fabOpen,
+                button = {
+                    ToggleFloatingActionButton(checked = fabOpen, onCheckedChange = { fabOpen = it }) {
+                        Icon(if (checkedProgress > 0.5f) Symbols.Close else Symbols.Add, "Neuer Eintrag", Modifier.animateIcon({ checkedProgress }))
+                    }
+                },
+                modifier = Modifier.align(Alignment.BottomEnd).padding(bottom = contentPadding.calculateBottomPadding() + lift),
+            ) {
+                ItemType.entries.forEach { type ->
+                    FloatingActionButtonMenuItem(
+                        onClick = {
+                            fabOpen = false
+                            state.open(Route.Edit(null, type))
+                        },
+                        icon = { Icon(type.icon, null) },
+                        text = { Text(type.label) },
+                    )
                 }
-            },
-            modifier = Modifier.align(Alignment.BottomEnd).padding(bottom = contentPadding.calculateBottomPadding() + 88.dp),
-        ) {
-            ItemType.entries.forEach { type ->
-                FloatingActionButtonMenuItem(
-                    onClick = {
-                        fabOpen = false
-                        state.open(Route.Edit(null, type))
-                    },
-                    icon = { Icon(type.icon, null) },
-                    text = { Text(type.label) },
-                )
             }
         }
     }
 
     if (securityOpen) SecuritySheet(report, state) { securityOpen = false }
+}
+
+private const val DEMO_REFRESH_MS = 900L
+
+/** A list block with the usual gap below it; it slides when blocks above appear or disappear. */
+private fun LazyListScope.block(key: String, gap: Dp = 16.dp, content: @Composable () -> Unit) {
+    item(key = key) {
+        Box(Modifier.animateItem(fadeInSpec = tween(200), placementSpec = spring(dampingRatio = 0.85f, stiffness = 380f, visibilityThreshold = IntOffset.VisibilityThreshold), fadeOutSpec = tween(120)).padding(bottom = gap)) {
+            content()
+        }
+    }
 }
 
 @Composable
@@ -380,6 +456,7 @@ private fun SecurityCard(report: SecurityReport, onClick: () -> Unit) {
 @Composable
 private fun SecuritySheet(report: SecurityReport, state: AppState, onClose: () -> Unit) {
     ModalBottomSheet(onDismissRequest = onClose) {
+        HideNativeChrome()
         Column(Modifier.padding(start = 16.dp, end = 16.dp, bottom = 24.dp), verticalArrangement = Arrangement.spacedBy(16.dp)) {
             Row(Modifier.padding(horizontal = 8.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(16.dp)) {
                 WavyRing(report.score / 100f, "${report.score}", 64.dp)
@@ -405,7 +482,7 @@ private fun SecuritySheet(report: SecurityReport, state: AppState, onClose: () -
                         },
                         iconBg = if (issue.serious) MaterialTheme.colorScheme.errorContainer else MaterialTheme.colorScheme.tertiaryContainer,
                         iconTint = if (issue.serious) MaterialTheme.colorScheme.onErrorContainer else MaterialTheme.colorScheme.onTertiaryContainer,
-                        onClick = { onClose(); state.open(Route.Detail(finding.item.id)) },
+                        onClick = { onClose(); state.openItem(finding.item.id, "sheet") },
                     ) { Text(issue.kind.short, style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.onSurfaceVariant) }
                 }
             }
@@ -423,12 +500,12 @@ private fun Favorites(favorites: List<VaultItem>, state: AppState) {
                 val bg = brand?.let { Color(it.bg) } ?: item.type.containerColor
                 val fg = brand?.let { Color(it.fg) } ?: item.type.contentColor
                 Column(
-                    Modifier.width(132.dp).height(152.dp).clip(RoundedCornerShape(32.dp)).background(bg).clickable { state.open(Route.Detail(item.id)) }.padding(16.dp),
+                    Modifier.hero("fav-tile-${item.id}").width(132.dp).height(152.dp).clip(RoundedCornerShape(32.dp)).background(bg).clickable { state.openItem(item.id, "fav") }.padding(16.dp),
                     verticalArrangement = Arrangement.SpaceBetween,
                 ) {
                     Icon(brand?.let { Brands.icon(it) } ?: item.type.icon, null, tint = fg, modifier = Modifier.size(36.dp))
                     Column {
-                        Text(item.name, style = MaterialTheme.typography.titleMediumEmphasized, color = fg, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                        Text(item.name, style = MaterialTheme.typography.titleMediumEmphasized, color = fg, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.hero("fav-name-${item.id}"))
                         Text(listSubtitle(item, false), style = MaterialTheme.typography.bodySmall, color = fg.copy(alpha = 0.85f), maxLines = 1, overflow = TextOverflow.Ellipsis)
                     }
                 }
@@ -475,20 +552,35 @@ private fun ListHeader(state: AppState, count: Int, searching: Boolean) {
 }
 
 @Composable
-private fun VaultRow(item: VaultItem, subtitle: String, shape: androidx.compose.ui.graphics.Shape, state: AppState) {
+private fun VaultRow(item: VaultItem, subtitle: String, index: Int, count: Int, state: AppState, modifier: Modifier = Modifier) {
     val copy = LocalCopy.current
+    // M3 Expressive press: the row rounds off and sinks a little while held.
+    val interaction = remember { MutableInteractionSource() }
+    val pressed by interaction.collectIsPressedAsState()
+    val cornerSpring = spring<Dp>(dampingRatio = 0.6f, stiffness = 500f)
+    val top by animateDpAsState(if (pressed) 28.dp else if (index == 0) 24.dp else 4.dp, cornerSpring)
+    val bottom by animateDpAsState(if (pressed) 28.dp else if (index == count - 1) 24.dp else 4.dp, cornerSpring)
+    val scale by animateFloatAsState(if (pressed) 0.97f else 1f, spring(dampingRatio = 0.6f, stiffness = 500f))
     Row(
-        Modifier.fillMaxWidth().clip(shape).background(MaterialTheme.colorScheme.surface).defaultMinSize(minHeight = 72.dp).clickable { state.open(Route.Detail(item.id)) }
+        modifier
+            .graphicsLayer { scaleX = scale; scaleY = scale }
+            .fillMaxWidth()
+            .clip(RoundedCornerShape(top, top, bottom, bottom))
+            .background(MaterialTheme.colorScheme.surface)
+            .defaultMinSize(minHeight = 72.dp)
+            .clickable(interactionSource = interaction, indication = LocalIndication.current) { state.openItem(item.id, "row") }
             .padding(start = 16.dp, end = 4.dp, top = 12.dp, bottom = 12.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
-        ItemTile(item)
+        ItemTile(item, modifier = Modifier.hero("row-tile-${item.id}"))
         Spacer(Modifier.width(16.dp))
         Column(Modifier.weight(1f)) {
-            Text(item.name, style = MaterialTheme.typography.bodyLargeEmphasized, maxLines = 1, overflow = TextOverflow.Ellipsis)
+            Text(item.name, style = MaterialTheme.typography.bodyLargeEmphasized, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.hero("row-name-${item.id}"))
             Text(subtitle, style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant, maxLines = 1, overflow = TextOverflow.Ellipsis)
         }
-        if (item.favorite) Icon(Symbols.StarFill, "Favorit", Modifier.padding(horizontal = 4.dp).size(20.dp), tint = MaterialTheme.colorScheme.tertiary)
+        AnimatedVisibility(item.favorite, enter = scaleIn(spring(dampingRatio = 0.4f, stiffness = 600f)) + fadeIn(), exit = scaleOut() + fadeOut()) {
+            Icon(Symbols.StarFill, "Favorit", Modifier.padding(horizontal = 4.dp).size(20.dp), tint = MaterialTheme.colorScheme.tertiary)
+        }
         val secret = when (item.type) {
             ItemType.Login -> item.login?.password
             ItemType.Card -> item.card?.number

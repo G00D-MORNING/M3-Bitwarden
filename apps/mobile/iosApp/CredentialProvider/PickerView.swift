@@ -43,7 +43,7 @@ struct ExtensionRoot: View {
             VStack(spacing: 28) {
                 HStack {
                     Spacer()
-                    Button("Abbrechen") { onDone(nil) }.buttonStyle(M3ButtonStyle(kind: .text, height: 40))
+                    GlassCloseButton { onDone(nil) }
                 }
                 M3Emblem(symbol: trying ? "faceid" : "lock.fill", size: 140, busy: trying)
                 VStack(spacing: 6) {
@@ -133,7 +133,7 @@ private struct PickerList: View {
                     if let domain { Text(domain).font(.subheadline).foregroundStyle(M3.onSurfaceVariant) }
                 }
                 Spacer()
-                Button("Abbrechen") { onDone(nil) }.buttonStyle(M3ButtonStyle(kind: .text, height: 40))
+                GlassCloseButton { onDone(nil) }
             }
             .padding(.horizontal, 20).padding(.top, 16).padding(.bottom, 12)
 

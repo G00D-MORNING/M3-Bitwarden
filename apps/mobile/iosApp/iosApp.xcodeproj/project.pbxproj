@@ -9,11 +9,13 @@
 /* Begin PBXBuildFile section */
 		03B4315975D19FB1F8903E74 /* CredentialIdentitySync.swift in Sources */ = {isa = PBXBuildFile; fileRef = FE3725CB59F2DC7687B9DB60 /* CredentialIdentitySync.swift */; };
 		04436E04354B1C42C2BA50BD /* DER.swift in Sources */ = {isa = PBXBuildFile; fileRef = FA5213DE363183ACA1FDDE09 /* DER.swift */; };
+		09EA99F192D93C6DE948B747 /* Glass.swift in Sources */ = {isa = PBXBuildFile; fileRef = D33EC2B29BB186BCB3FC35D0 /* Glass.swift */; };
 		0F484F62E21B73325378EC72 /* SecureStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = E6869681A746A724EC00E0AD /* SecureStore.swift */; };
 		114E9A2D1F7D08667D62F8C2 /* VaultwardenAPI.swift in Sources */ = {isa = PBXBuildFile; fileRef = 57DCC9120F96BAECFFA8B9C0 /* VaultwardenAPI.swift */; };
 		15BBA34221B6526D848359AE /* DeviceCertificate.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1B00BB36A0970E034E3C85F5 /* DeviceCertificate.swift */; };
 		1C81D6F669B7BB6D2FFCCEB3 /* BitwardenSdk in Frameworks */ = {isa = PBXBuildFile; productRef = 27AE3353AB6FC9DC7DB3172F /* BitwardenSdk */; };
 		22EA1CB33A17DCC6FC82406D /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = F543015C899423D4B01CEB2E /* Assets.xcassets */; };
+		268DD2DBF91A9A3FBDF954B2 /* GlassChrome.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3A42123E6C7757FBD7982F9D /* GlassChrome.swift */; };
 		307C2654CD5972A25FB7FD87 /* iOSApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = 668CECA83ACC03A83C85A623 /* iOSApp.swift */; };
 		4129F76837271A13D8CA6D2E /* DeviceCertificate.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1B00BB36A0970E034E3C85F5 /* DeviceCertificate.swift */; };
 		42C5D285E79B716D056325EB /* CredentialIdentitySync.swift in Sources */ = {isa = PBXBuildFile; fileRef = FE3725CB59F2DC7687B9DB60 /* CredentialIdentitySync.swift */; };
@@ -36,6 +38,7 @@
 		CF16823F77D141867E415BC4 /* SecureStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = E6869681A746A724EC00E0AD /* SecureStore.swift */; };
 		E12590D1B14C94887DF2400E /* M3Style.swift in Sources */ = {isa = PBXBuildFile; fileRef = FFA62F236FEA5922EF54FECF /* M3Style.swift */; };
 		EAE4434DDEE51F25FF568580 /* CredentialProviderViewController.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1CF7319B0B1B79ECBD28DBC5 /* CredentialProviderViewController.swift */; };
+		F812574272111B444D9429A1 /* Glass.swift in Sources */ = {isa = PBXBuildFile; fileRef = D33EC2B29BB186BCB3FC35D0 /* Glass.swift */; };
 		FFF93642A27B8411D7A8E6BE /* RootView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2925723D1B4AC9FBF45C9F3F /* RootView.swift */; };
 /* End PBXBuildFile section */
 
@@ -70,6 +73,7 @@
 		1CF7319B0B1B79ECBD28DBC5 /* CredentialProviderViewController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CredentialProviderViewController.swift; sourceTree = "<group>"; };
 		2925723D1B4AC9FBF45C9F3F /* RootView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RootView.swift; sourceTree = "<group>"; };
 		3220B74EC95087BBEF30D4AE /* VaultwardenModels.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = VaultwardenModels.swift; sourceTree = "<group>"; };
+		3A42123E6C7757FBD7982F9D /* GlassChrome.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GlassChrome.swift; sourceTree = "<group>"; };
 		4D5FF9DF5C14447E13AE1541 /* VaultService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = VaultService.swift; sourceTree = "<group>"; };
 		57DCC9120F96BAECFFA8B9C0 /* VaultwardenAPI.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = VaultwardenAPI.swift; sourceTree = "<group>"; };
 		668CECA83ACC03A83C85A623 /* iOSApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = iOSApp.swift; sourceTree = "<group>"; };
@@ -80,6 +84,7 @@
 		C200BAE518F390060967A545 /* CredentialProvider.appex */ = {isa = PBXFileReference; includeInIndex = 0; lastKnownFileType = "wrapper.app-extension"; path = CredentialProvider.appex; sourceTree = BUILT_PRODUCTS_DIR; };
 		C49B0B02429FBBC9F867DDE1 /* iosApp.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = iosApp.entitlements; sourceTree = "<group>"; };
 		CE8509E5A49E4A5CAAEB3ADB /* ContentView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ContentView.swift; sourceTree = "<group>"; };
+		D33EC2B29BB186BCB3FC35D0 /* Glass.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Glass.swift; sourceTree = "<group>"; };
 		D79507B4FE35B12BCF209904 /* Preview Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = "Preview Assets.xcassets"; sourceTree = "<group>"; };
 		E6869681A746A724EC00E0AD /* SecureStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SecureStore.swift; sourceTree = "<group>"; };
 		F543015C899423D4B01CEB2E /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
@@ -114,6 +119,7 @@
 			children = (
 				F543015C899423D4B01CEB2E /* Assets.xcassets */,
 				CE8509E5A49E4A5CAAEB3ADB /* ContentView.swift */,
+				3A42123E6C7757FBD7982F9D /* GlassChrome.swift */,
 				C117AD187833E2513BD2F553 /* Info.plist */,
 				C49B0B02429FBBC9F867DDE1 /* iosApp.entitlements */,
 				668CECA83ACC03A83C85A623 /* iOSApp.swift */,
@@ -148,6 +154,7 @@
 				FE3725CB59F2DC7687B9DB60 /* CredentialIdentitySync.swift */,
 				FA5213DE363183ACA1FDDE09 /* DER.swift */,
 				1B00BB36A0970E034E3C85F5 /* DeviceCertificate.swift */,
+				D33EC2B29BB186BCB3FC35D0 /* Glass.swift */,
 				0B48130E46ADBE5D6F6CE23E /* M3BConfig.swift */,
 				FFA62F236FEA5922EF54FECF /* M3Style.swift */,
 				F7D8178EA7CB8D613E28205C /* SdkMapping.swift */,
@@ -336,6 +343,7 @@
 				EAE4434DDEE51F25FF568580 /* CredentialProviderViewController.swift in Sources */,
 				04436E04354B1C42C2BA50BD /* DER.swift in Sources */,
 				15BBA34221B6526D848359AE /* DeviceCertificate.swift in Sources */,
+				F812574272111B444D9429A1 /* Glass.swift in Sources */,
 				B36C78349BBE241E649B8B44 /* M3BConfig.swift in Sources */,
 				E12590D1B14C94887DF2400E /* M3Style.swift in Sources */,
 				AFD7929DFE3EC678282E2190 /* PickerView.swift in Sources */,
@@ -355,6 +363,8 @@
 				42C5D285E79B716D056325EB /* CredentialIdentitySync.swift in Sources */,
 				CE16E9825F720328EC8E2B28 /* DER.swift in Sources */,
 				4129F76837271A13D8CA6D2E /* DeviceCertificate.swift in Sources */,
+				09EA99F192D93C6DE948B747 /* Glass.swift in Sources */,
+				268DD2DBF91A9A3FBDF954B2 /* GlassChrome.swift in Sources */,
 				72985C0999741C0BBEC59258 /* M3BConfig.swift in Sources */,
 				4793CFA237509B9E16374DE7 /* M3Style.swift in Sources */,
 				FFF93642A27B8411D7A8E6BE /* RootView.swift in Sources */,

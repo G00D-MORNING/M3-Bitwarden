@@ -18,14 +18,14 @@ struct RootView: View {
     var body: some View {
         Group {
             if demo {
-                ComposeView().ignoresSafeArea()
+                VaultHost()
             } else {
             switch service.phase {
             case .needsCertificate: CertificateSetupView(service: service)
             case .signedOut: SignInView(service: service)
             case .locked: UnlockView(service: service)
             case .unlocked:
-                ComposeView().ignoresSafeArea()
+                VaultHost()
             }
             }
         }
@@ -67,7 +67,7 @@ private struct SetupPage<Content: View>: View {
             .frame(maxWidth: .infinity)
         }
         .scrollDismissesKeyboard(.interactively)
-        .background(M3.surface.ignoresSafeArea())
+        .background(M3Backdrop())
         .foregroundStyle(M3.onSurface)
     }
 }
