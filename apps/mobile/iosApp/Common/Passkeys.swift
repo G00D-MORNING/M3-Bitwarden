@@ -1,6 +1,7 @@
 import AuthenticationServices
 import BitwardenSdk
 import Foundation
+import os
 
 /*
  * Passkeys stored in Vaultwarden (the `fido2Credentials` of login items).
@@ -62,6 +63,7 @@ enum PasskeyFailure: LocalizedError {
     case unsupportedAlgorithm
     case alreadyRegistered
     case upload(String)
+    case sdk(String)
 
     var errorDescription: String? {
         switch self {
@@ -70,6 +72,7 @@ enum PasskeyFailure: LocalizedError {
         case .unsupportedAlgorithm: "Die Seite verlangt ein Schlüsselverfahren, das Bitwarden-Passkeys nicht unterstützen."
         case .alreadyRegistered: "Für dieses Konto ist schon ein Passkey im Tresor gespeichert."
         case let .upload(message): "Der Passkey konnte nicht in Vaultwarden gespeichert werden: \(message)"
+        case let .sdk(message): message
         }
     }
 }
@@ -103,6 +106,8 @@ private final class PasskeySession: Fido2UserInterface, Fido2CredentialStore, @u
     private let upload: (EncryptionContext) async throws -> String
     /// Server id of the login a new passkey was saved in.
     private(set) var savedCipherId: String?
+    /// Why saving failed; the SDK only reports "vendor error 0xF1" for it.
+    private(set) var saveError: Error?
 
     init(purpose: Purpose, ciphers: [CipherView], encrypted: [BitwardenSdk.Cipher], client: Client, upload: @escaping (EncryptionContext) async throws -> String) {
         self.purpose = purpose
@@ -114,8 +119,14 @@ private final class PasskeySession: Fido2UserInterface, Fido2CredentialStore, @u
 
     // MARK: Fido2UserInterface
 
+    /// A refusal in a user check (e.g. passkey already saved), reported instead of the SDK's code.
+    private(set) var checkError: Error?
+
     func checkUser(options: CheckUserOptions, hint: UiHint) async throws -> CheckUserResult {
-        if case .informExcludedCredentialFound = hint { throw PasskeyFailure.alreadyRegistered }
+        if case .informExcludedCredentialFound = hint {
+            checkError = PasskeyFailure.alreadyRegistered
+            throw PasskeyFailure.alreadyRegistered
+        }
         return CheckUserResult(userPresent: true, userVerified: true)
     }
 
@@ -161,12 +172,32 @@ private final class PasskeySession: Fido2UserInterface, Fido2CredentialStore, @u
         switch purpose {
         case .registration:
             // Must reach the server: the site keeps the public key either way.
-            savedCipherId = try await upload(cred)
+            do {
+                savedCipherId = try await upload(cred)
+            } catch {
+                saveError = error
+                PasskeyLog.failure("save", error)
+                throw error
+            }
         case .assertion:
             // Only passkeys with a signature counter (imported ones) get here. A failed upload
             // must not block the sign-in; the next use sends the newer counter again.
             _ = try? await upload(cred)
         }
+    }
+}
+
+/// Passkey failures in the device log (Console, subsystem com.framepersecond.m3bitwarden), without
+/// any key or vault data: only the operation and the error text.
+enum PasskeyLog {
+    private static let log = Logger(subsystem: "com.framepersecond.m3bitwarden", category: "passkey")
+
+    static func failure(_ operation: String, _ error: Error) {
+        log.error("passkey \(operation, privacy: .public) failed: \(describe(error), privacy: .public)")
+    }
+
+    static func describe(_ error: Error) -> String {
+        (error as? LocalizedError)?.errorDescription ?? String(describing: error)
     }
 }
 
@@ -228,15 +259,20 @@ struct PasskeyEngine {
     func assertion(_ request: PasskeyAssertionRequest, cipherId: String?) async throws -> GetAssertionResult {
         let session = PasskeySession(purpose: .assertion(cipherId: cipherId), ciphers: passkeyCiphers, encrypted: encrypted, client: client, upload: upload)
         let allowList = request.allowedCredentials.map { PublicKeyCredentialDescriptor(ty: "public-key", id: $0, transports: nil) }
-        return try await client.platform().fido2()
-            .authenticator(userInterface: session, credentialStore: session)
-            .getAssertion(request: GetAssertionRequest(
-                rpId: request.rpId,
-                clientDataHash: request.clientDataHash,
-                allowList: allowList.isEmpty ? nil : allowList,
-                options: Options(rk: false, uv: request.userVerification),
-                extensions: nil
-            ))
+        do {
+            return try await client.platform().fido2()
+                .authenticator(userInterface: session, credentialStore: session)
+                .getAssertion(request: GetAssertionRequest(
+                    rpId: request.rpId,
+                    clientDataHash: request.clientDataHash,
+                    allowList: allowList.isEmpty ? nil : allowList,
+                    options: Options(rk: false, uv: request.userVerification),
+                    extensions: nil
+                ))
+        } catch {
+            PasskeyLog.failure("assertion", error)
+            throw PasskeyFailure.sdk("Anmelden mit dem Passkey ist fehlgeschlagen (\(PasskeyLog.describe(error))).")
+        }
     }
 
     /// Creates a passkey for [request] in the login [cipherId], or in a new login when nil, and
@@ -252,17 +288,26 @@ struct PasskeyEngine {
         }
         let session = PasskeySession(purpose: .registration(target: target), ciphers: passkeyCiphers, encrypted: encrypted, client: client, upload: upload)
         let excluded = request.excludedCredentials.map { PublicKeyCredentialDescriptor(ty: "public-key", id: $0, transports: nil) }
-        let result = try await client.platform().fido2()
-            .authenticator(userInterface: session, credentialStore: session)
-            .makeCredential(request: MakeCredentialRequest(
-                clientDataHash: request.clientDataHash,
-                rp: PublicKeyCredentialRpEntity(id: request.rpId, name: request.rpName),
-                user: PublicKeyCredentialUserEntity(id: request.userHandle, displayName: request.userDisplayName, name: request.userName),
-                pubKeyCredParams: [PublicKeyCredentialParameters(ty: "public-key", alg: -7)],
-                excludeList: excluded.isEmpty ? nil : excluded,
-                options: Options(rk: true, uv: request.userVerification),
-                extensions: nil
-            ))
+        let result: MakeCredentialResult
+        do {
+            result = try await client.platform().fido2()
+                .authenticator(userInterface: session, credentialStore: session)
+                .makeCredential(request: MakeCredentialRequest(
+                    clientDataHash: request.clientDataHash,
+                    rp: PublicKeyCredentialRpEntity(id: request.rpId, name: request.rpName),
+                    user: PublicKeyCredentialUserEntity(id: request.userHandle, displayName: request.userDisplayName, name: request.userName),
+                    pubKeyCredParams: [PublicKeyCredentialParameters(ty: "public-key", alg: -7)],
+                    excludeList: excluded.isEmpty ? nil : excluded,
+                    options: Options(rk: true, uv: request.userVerification),
+                    extensions: nil
+                ))
+        } catch {
+            // The SDK hides why saving failed behind a vendor error; report our own reason.
+            if let reason = session.saveError { throw reason }
+            if let reason = session.checkError { throw reason }
+            PasskeyLog.failure("registration", error)
+            throw PasskeyFailure.sdk("Der Passkey konnte nicht erstellt werden (\(PasskeyLog.describe(error))).")
+        }
         guard let saved = session.savedCipherId else { throw PasskeyFailure.upload("keine Antwort") }
         return (result, saved)
     }
@@ -306,12 +351,9 @@ extension VaultService {
     func uploadPasskey(_ context: EncryptionContext) async throws -> String {
         let body = CipherRequestModel(cipher: context.cipher)
         do {
-            if let id = context.cipher.id {
-                return try await api.updateCipher(id: id, body).id
-            }
-            return try await api.createCipher(body).id
+            return try await api.saveCipher(id: context.cipher.id, body)
         } catch {
-            throw PasskeyFailure.upload((error as? LocalizedError)?.errorDescription ?? error.localizedDescription)
+            throw PasskeyFailure.upload(PasskeyLog.describe(error))
         }
     }
 }

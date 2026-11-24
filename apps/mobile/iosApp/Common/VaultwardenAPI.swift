@@ -107,6 +107,16 @@ final class VaultwardenAPI {
         try await send(encodable: body, to: M3BConfig.apiURL.appendingPathComponent("ciphers/\(id)"), method: "PUT")
     }
 
+    /// Like [createCipher]/[updateCipher], but reads only the id of the saved item from the answer,
+    /// so a field this app does not model can never turn a successful save into an error.
+    func saveCipher(id: String?, _ body: CipherRequestModel) async throws -> String {
+        let url = M3BConfig.apiURL.appendingPathComponent(id.map { "ciphers/\($0)" } ?? "ciphers")
+        let saved: SavedId = try await send(encodable: body, to: url, method: id == nil ? "POST" : "PUT")
+        return saved.id
+    }
+
+    private struct SavedId: Decodable { let id: String }
+
     func createFolder(name: String) async throws -> FolderModel {
         try await send(encodable: ["name": name], to: M3BConfig.apiURL.appendingPathComponent("folders"), method: "POST")
     }
