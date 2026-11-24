@@ -560,12 +560,17 @@ private fun Favorites(favorites: List<VaultItem>, state: AppState) {
         SectionTitle("Favoriten")
         LazyRow(horizontalArrangement = Arrangement.spacedBy(10.dp), contentPadding = PaddingValues(horizontal = 0.dp)) {
             items(favorites, key = { it.id }) { item ->
-                val fg = MaterialTheme.colorScheme.onSurface
+                // As in the prototype: the card in the brand's colour with its logo; items
+                // without a bundled logo get a tonal card with their website icon.
+                val brand = if (AppSettings.showLogos) Brands.forItem(item) else null
+                val bg = brand?.let { Color(it.bg) } ?: MaterialTheme.colorScheme.surfaceContainerHigh
+                val fg = brand?.let { Color(it.fg) } ?: MaterialTheme.colorScheme.onSurface
                 Column(
-                    Modifier.hero("fav-tile-${item.id}").width(132.dp).height(152.dp).clip(RoundedCornerShape(32.dp)).background(MaterialTheme.colorScheme.surfaceContainerHigh).clickable { state.openItem(item.id, "fav") }.padding(16.dp),
+                    Modifier.hero("fav-tile-${item.id}").width(132.dp).height(152.dp).clip(RoundedCornerShape(32.dp)).background(bg).clickable { state.openItem(item.id, "fav") }.padding(16.dp),
                     verticalArrangement = Arrangement.SpaceBetween,
                 ) {
-                    com.framepersecond.m3bitwarden.ui.brands.SiteMark(item, 44.dp)
+                    if (brand != null) Icon(Brands.icon(brand), null, tint = fg, modifier = Modifier.size(36.dp))
+                    else com.framepersecond.m3bitwarden.ui.brands.SiteMark(item, 44.dp)
                     Column {
                         Text(item.name, style = MaterialTheme.typography.titleMediumEmphasized, color = fg, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.hero("fav-name-${item.id}"))
                         Text(listSubtitle(item, false), style = MaterialTheme.typography.bodySmall, color = fg.copy(alpha = 0.85f), maxLines = 1, overflow = TextOverflow.Ellipsis)

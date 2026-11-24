@@ -51,7 +51,8 @@ struct GlassChrome: View {
         let visible = snap.map { !$0.modal } ?? false
         ZStack(alignment: .bottom) {
             if menuOpen {
-                Color.black.opacity(0.18)
+                // Prototype: scrim at 28 %.
+                Color.black.opacity(0.28)
                     .ignoresSafeArea()
                     .onTapGesture { closeMenu() }
                     .allowsHitTesting(menuOpen)
@@ -91,7 +92,7 @@ struct GlassChrome: View {
 
     private let tabs = [
         Tab(label: "Tresor", symbol: "lock.shield", selectedSymbol: "lock.shield.fill"),
-        Tab(label: "Generator", symbol: "wand.and.sparkles", selectedSymbol: "wand.and.sparkles"),
+        Tab(label: "Generator", symbol: "key.horizontal", selectedSymbol: "key.horizontal.fill"),
         Tab(label: "Einstellungen", symbol: "gearshape", selectedSymbol: "gearshape.fill"),
     ]
 
@@ -100,47 +101,66 @@ struct GlassChrome: View {
         let compact = snap.compact && !menuOpen
         let items = snap.itemTypes
         return VStack(alignment: .trailing, spacing: 12) {
-            if menuMounted {
-                ForEach(Array(items.enumerated()), id: \.element.id) { index, item in
-                    // Nearest to the button first when opening, top first when closing.
-                    let delay = Double(itemsOut ? items.count - 1 - index : index) * 0.03
-                    Button {
-                        closeMenu()
-                        NativeChrome.shared.createItem(id: item.id)
-                    } label: {
-                        Label(item.label, systemImage: item.symbol)
-                            .font(.system(size: 17, weight: .semibold))
-                            .padding(.horizontal, 22)
-                            .frame(height: 54)
-                            .contentShape(Capsule())
-                    }
-                    .buttonStyle(.plain)
-                    .foregroundStyle(M3.onPrimaryContainer)
-                    .glassEffect(.regular.tint(M3.primaryContainer.opacity(0.75)).interactive(), in: .capsule)
-                    .scaleEffect(itemsOut ? 1 : 0.6, anchor: .bottomTrailing)
-                    .offset(y: itemsOut ? 0 : 24)
-                    .opacity(itemsOut ? 1 : 0)
-                    .animation(Self.itemSpring.delay(delay), value: itemsOut)
-                    .allowsHitTesting(itemsOut)
-                }
-            }
-            HStack(alignment: .bottom, spacing: 12) {
-                HStack(spacing: 2) {
-                    ForEach(tabs.indices, id: \.self) { i in
-                        if !compact || i == selected {
-                            tabButton(i, selected: i == selected, showLabel: !compact)
+            // The prototype's FAB menu sits above the tab bar at the right edge.
+            if selected == 0 {
+                VStack(alignment: .trailing, spacing: 8) {
+                    if menuMounted {
+                        VStack(alignment: .trailing, spacing: 4) {
+                            ForEach(Array(items.enumerated()), id: \.element.id) { index, item in
+                                menuItem(item, index: index, count: items.count)
+                            }
                         }
                     }
-                }
-                .padding(6)
-                .glassEffect(.regular.interactive(), in: .capsule)
-                .glassEffectID("bar", in: glass)
-
-                if selected == 0 {
                     fab
                 }
+                .padding(.trailing, 0)
             }
+            // Prototype: the bar spans the width, tabs evenly spread; scrolling shrinks it to the
+            // selected tab.
+            HStack(spacing: 2) {
+                ForEach(tabs.indices, id: \.self) { i in
+                    if !compact || i == selected {
+                        tabButton(i, selected: i == selected, showLabel: !compact)
+                            .frame(maxWidth: compact ? nil : .infinity)
+                    }
+                }
+            }
+            .padding(6)
+            .frame(maxWidth: compact ? nil : .infinity)
+            .glassEffect(.regular.interactive(), in: .capsule)
+            .glassEffectID("bar", in: glass)
+            .frame(maxWidth: .infinity, alignment: compact ? .leading : .center)
         }
+    }
+
+    /// One entry of the FAB menu, exactly as the prototype's M3 Expressive FabMenu: a 56 pt
+    /// primary-container pill with elevation; it grows from 60 % at its bottom-right corner, rises
+    /// 24 pt and fades in, 30 ms after the one below it (closing: top first).
+    private func menuItem(_ item: ChromeAction, index: Int, count: Int) -> some View {
+        let delay = Double(itemsOut ? count - 1 - index : index) * 0.03
+        return Button {
+            closeMenu()
+            NativeChrome.shared.createItem(id: item.id)
+        } label: {
+            HStack(spacing: 8) {
+                Image(systemName: item.symbol).font(.system(size: 20, weight: .medium)).frame(width: 24)
+                Text(item.label).font(.system(size: 16, weight: .medium)).tracking(0.15)
+            }
+            .padding(.leading, 16)
+            .padding(.trailing, 24)
+            .frame(height: 56)
+            .background(M3.primaryContainer, in: Capsule())
+            .shadow(color: .black.opacity(0.18), radius: 6, y: 3)
+            .contentShape(Capsule())
+        }
+        .buttonStyle(.plain)
+        .foregroundStyle(M3.onPrimaryContainer)
+        .scaleEffect(itemsOut ? 1 : 0.6, anchor: .bottomTrailing)
+        .offset(y: itemsOut ? 0 : 24)
+        .animation(Self.spatialFast.delay(delay), value: itemsOut)
+        .opacity(itemsOut ? 1 : 0)
+        .animation(Self.effectsFast.delay(delay), value: itemsOut)
+        .allowsHitTesting(itemsOut)
     }
 
     private func tabButton(_ i: Int, selected: Bool, showLabel: Bool) -> some View {
@@ -170,42 +190,47 @@ struct GlassChrome: View {
         .accessibilityAddTraits(selected ? .isSelected : [])
     }
 
-    /// M3 Expressive "fast spatial" spring: quick, with a little overshoot.
-    private static let itemSpring = Animation.spring(response: 0.36, dampingFraction: 0.68)
+    /// M3 Expressive "fast spatial": 394 ms with about 9 % overshoot (the prototype's curve).
+    private static let spatialFast = Animation.spring(duration: 0.394, bounce: 0.28)
+    /// M3 "fast effects": 173 ms ease-out, for colour and opacity.
+    private static let effectsFast = Animation.easeOut(duration: 0.173)
 
     private func openMenu() {
         menuMounted = true
-        withAnimation(spring) { menuOpen = true }
+        withAnimation(Self.spatialFast) { menuOpen = true }
         // One frame later, so the items start at the button and fly out.
         DispatchQueue.main.async { itemsOut = true }
     }
 
     private func closeMenu(animated: Bool = true) {
         guard menuMounted || menuOpen else { return }
-        withAnimation(animated ? spring : nil) { menuOpen = false }
+        withAnimation(animated ? Self.spatialFast : nil) { menuOpen = false }
         itemsOut = false
         guard animated else { menuMounted = false; return }
         let last = Double(max(0, (model.snap?.itemTypes.count ?? 1) - 1)) * 0.03
-        DispatchQueue.main.asyncAfter(deadline: .now() + last + 0.3) {
+        DispatchQueue.main.asyncAfter(deadline: .now() + last + 0.4) {
             if !menuOpen { menuMounted = false }
         }
     }
 
+    /// The prototype's FAB: a 56 pt primary-container square (16 pt corners) that turns into a
+    /// primary circle while the menu is open; the plus turns a quarter and becomes a close icon.
     private var fab: some View {
         Button {
             menuOpen ? closeMenu() : openMenu()
         } label: {
-            Image(systemName: "plus")
-                .font(.system(size: 24, weight: .semibold))
-                .rotationEffect(.degrees(menuOpen ? 135 : 0))
-                .frame(width: 60, height: 60)
+            Image(systemName: menuOpen ? "xmark" : "plus")
+                .font(.system(size: 22, weight: .semibold))
+                .contentTransition(.symbolEffect(.replace))
+                .rotationEffect(.degrees(menuOpen ? 90 : 0))
+                .frame(width: 56, height: 56)
+                .foregroundStyle(menuOpen ? M3.onPrimary : M3.onPrimaryContainer)
+                .background(menuOpen ? M3.primary : M3.primaryContainer, in: RoundedRectangle(cornerRadius: menuOpen ? 28 : 16, style: .continuous))
+                .shadow(color: .black.opacity(0.18), radius: 6, y: 3)
                 .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
-        .foregroundStyle(M3.onPrimary)
-        // M3 Expressive FAB menu: the rounded square turns into a circle while open.
-        .glassEffect(.regular.tint(M3.primary).interactive(), in: RoundedRectangle(cornerRadius: menuOpen ? 30 : 18, style: .continuous))
-        .glassEffectID("fab", in: glass)
+        .animation(Self.spatialFast, value: menuOpen)
         .accessibilityLabel(menuOpen ? "Menü schließen" : "Neuer Eintrag")
     }
 
