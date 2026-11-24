@@ -89,6 +89,8 @@ data class LoginData(
     val additionalUris: List<String> = emptyList(),
     /** Number of passkeys stored with this login (read-only in this app). */
     val passkeys: Int = 0,
+    /** Site and account of each passkey, when the platform could read them. */
+    val passkeyDetails: List<PasskeyInfo> = emptyList(),
 ) {
     val allUris: List<String> get() = (listOf(uri) + additionalUris).filter { it.isNotBlank() }.distinct()
 
@@ -97,6 +99,10 @@ data class LoginData(
         return copy(uri = clean.firstOrNull().orEmpty(), additionalUris = clean.drop(1))
     }
 }
+
+/** A passkey as the item page shows it; the key itself never leaves the Bitwarden SDK. */
+@Immutable
+data class PasskeyInfo(val site: String, val userName: String, val createdLabel: String)
 
 @Immutable
 data class CardData(

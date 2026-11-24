@@ -147,7 +147,14 @@ private fun fieldsOf(item: VaultItem): List<DetailField> = buildList {
                 }
                 add(DetailField(label, uri, url = if (web) (if ("://" in uri) uri else "https://$uri") else null, copyLabel = "Adresse"))
             }
-            if (l.passkeys > 0) add(DetailField("Passkey", if (l.passkeys == 1) "1 Passkey gespeichert" else "${l.passkeys} Passkeys gespeichert", copyLabel = null))
+            if (l.passkeyDetails.isNotEmpty()) {
+                l.passkeyDetails.forEach { p ->
+                    val value = listOf(p.site, p.userName).filter { it.isNotBlank() }.joinToString(" · ")
+                    add(DetailField(if (p.createdLabel.isBlank()) "Passkey" else "Passkey · seit ${p.createdLabel}", value, copyLabel = null))
+                }
+            } else if (l.passkeys > 0) {
+                add(DetailField("Passkey", if (l.passkeys == 1) "1 Passkey gespeichert" else "${l.passkeys} Passkeys gespeichert", copyLabel = null))
+            }
         }
         ItemType.Card -> item.card?.let { c ->
             if (c.cardholder.isNotEmpty()) add(DetailField("Karteninhaber", c.cardholder))

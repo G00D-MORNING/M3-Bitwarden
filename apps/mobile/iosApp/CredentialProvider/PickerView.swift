@@ -4,18 +4,28 @@ import SwiftUI
 /// Everything the AutoFill sheet shows: first the unlock screen (Face ID, master password as
 /// fallback, never a blank page), then the credential list with the website of every entry.
 struct ExtensionRoot: View {
-    enum Mode { case password, oneTimeCode, text }
+    enum Mode { case password, oneTimeCode, text, passkey, newPasskey }
 
     struct Result {
-        let row: ProviderRow
-        let acceptedLink: ProviderLinkOffer?
-        let text: String?
+        var row: ProviderRow?
+        var acceptedLink: ProviderLinkOffer?
+        var text: String?
+        /// Passkey to sign in with.
+        var passkey: PasskeyEntry?
+        /// New passkey: the login to put it in (nil: a new login).
+        var passkeyTarget: String?
     }
 
     let mode: Mode
     let identifiers: [String]
-    /// Set when iOS asks for one specific suggestion (tap in the QuickType bar).
+    /// Set when iOS asks for one specific suggestion (tap in the QuickType bar or passkey sheet).
     let singleId: String?
+    /// Relying party of a passkey request (sign in or create).
+    var passkeySite: String?
+    /// Credential ids the site accepts; empty means any of its passkeys.
+    var allowedPasskeys: [Data] = []
+    /// Account name the site wants a new passkey for.
+    var newPasskeyUser: String?
     let bridge: CredentialProviderBridge
     let onDone: (Result?) -> Void
     let onUnlockedSingle: (Bool) -> Void
@@ -25,12 +35,18 @@ struct ExtensionRoot: View {
     @State private var trying = false
     @State private var password = ""
     @State private var rows: [ProviderRow] = []
+    @State private var passkeys: [PasskeyEntry] = []
+    @State private var targets: [PasskeyTarget] = []
 
     var body: some View {
         ZStack {
             M3.surfaceContainer.ignoresSafeArea()
             if unlocked && singleId == nil {
-                PickerList(mode: mode, domain: identifiers.first, rows: rows, bridge: bridge, onDone: onDone)
+                if mode == .newPasskey {
+                    NewPasskeyView(site: passkeySite ?? "", user: newPasskeyUser ?? "", targets: targets, onDone: onDone)
+                } else {
+                    PickerList(mode: mode, domain: identifiers.first, rows: rows, passkeys: passkeys, bridge: bridge, onDone: onDone)
+                }
             } else {
                 unlockView
             }
@@ -45,10 +61,10 @@ struct ExtensionRoot: View {
                     Spacer()
                     GlassCloseButton { onDone(nil) }
                 }
-                M3Emblem(symbol: trying ? "faceid" : "lock.fill", size: 140, busy: trying)
+                M3Emblem(symbol: trying ? "faceid" : (isPasskey ? "person.badge.key.fill" : "lock.fill"), size: 140, busy: trying)
                 VStack(spacing: 6) {
                     Text(trying ? "Wird entsperrt…" : "Tresor gesperrt").font(.system(size: 30, weight: .bold))
-                    Text(identifiers.first.map { "Anmelden bei \($0)" } ?? (service.account?.email ?? ""))
+                    Text(subtitle)
                         .font(.body).foregroundStyle(M3.onSurfaceVariant).multilineTextAlignment(.center)
                 }
                 if !trying {
@@ -70,6 +86,14 @@ struct ExtensionRoot: View {
             .padding(24)
         }
         .scrollDismissesKeyboard(.interactively)
+    }
+
+    private var isPasskey: Bool { mode == .passkey || mode == .newPasskey }
+
+    private var subtitle: String {
+        if mode == .newPasskey, let site = passkeySite { return "Passkey für \(site) speichern" }
+        if mode == .passkey, let site = passkeySite ?? identifiers.first { return "Mit Passkey bei \(site) anmelden" }
+        return identifiers.first.map { "Anmelden bei \($0)" } ?? (service.account?.email ?? "")
     }
 
     private func start() async {
@@ -101,6 +125,8 @@ struct ExtensionRoot: View {
     private func finishUnlock() {
         if singleId != nil { return onUnlockedSingle(true) }
         rows = bridge.rows(identifiers: identifiers, nowEpochMs: Int64(Date().timeIntervalSince1970 * 1000))
+        if mode == .passkey, let site = passkeySite { passkeys = service.passkeys(rpId: site, allowed: allowedPasskeys) }
+        if mode == .newPasskey, let site = passkeySite { targets = service.passkeyTargets(rpId: site) }
         withAnimation(.spring(response: 0.45, dampingFraction: 0.8)) { unlocked = true }
     }
 }
@@ -111,6 +137,7 @@ private struct PickerList: View {
     let mode: ExtensionRoot.Mode
     let domain: String?
     let rows: [ProviderRow]
+    var passkeys: [PasskeyEntry] = []
     let bridge: CredentialProviderBridge
     let onDone: (ExtensionRoot.Result?) -> Void
 
@@ -123,6 +150,12 @@ private struct PickerList: View {
         let pool = mode == .oneTimeCode ? rows.filter(\.hasTotp) : rows
         guard !q.isEmpty else { return pool }
         return pool.filter { $0.name.lowercased().contains(q) || $0.username.lowercased().contains(q) || $0.host.lowercased().contains(q) }
+    }
+
+    private var filteredPasskeys: [PasskeyEntry] {
+        let q = query.trimmingCharacters(in: .whitespaces).lowercased()
+        guard !q.isEmpty else { return passkeys }
+        return passkeys.filter { $0.itemName.lowercased().contains(q) || $0.userName.lowercased().contains(q) || $0.rpId.contains(q) }
     }
 
     var body: some View {
@@ -145,6 +178,13 @@ private struct PickerList: View {
             } else {
                 ScrollView {
                     VStack(alignment: .leading, spacing: 16) {
+                        if mode == .passkey {
+                            if filteredPasskeys.isEmpty, query.isEmpty {
+                                M3Error(text: "Für \(domain ?? "diese Seite") ist kein Passkey im Tresor. Du kannst dich stattdessen mit einem Passwort anmelden.")
+                            } else if !filteredPasskeys.isEmpty {
+                                passkeySection(filteredPasskeys)
+                            }
+                        }
                         let matched = filtered.filter(\.matched)
                         let rest = query.isEmpty ? filtered.filter { !$0.matched } : filtered
                         if query.isEmpty, !matched.isEmpty { section("Passend für diese Seite", matched) }
@@ -154,6 +194,40 @@ private struct PickerList: View {
                         }
                     }
                     .padding(16)
+                }
+            }
+        }
+    }
+
+    private func passkeySection(_ items: [PasskeyEntry]) -> some View {
+        VStack(alignment: .leading, spacing: 8) {
+            Text("Passkeys").font(.subheadline.weight(.semibold)).foregroundStyle(M3.primary).padding(.leading, 4)
+            VStack(spacing: 2) {
+                ForEach(Array(items.enumerated()), id: \.element.id) { index, passkey in
+                    Button { onDone(.init(passkey: passkey)) } label: {
+                        HStack(spacing: 16) {
+                            Image(systemName: "person.badge.key.fill")
+                                .font(.system(size: 19, weight: .semibold))
+                                .frame(width: 44, height: 44)
+                                .foregroundStyle(M3.onPrimary)
+                                .background(M3.primary, in: RoundedRectangle(cornerRadius: 14, style: .continuous))
+                            VStack(alignment: .leading, spacing: 2) {
+                                Text(passkey.itemName).font(.body.weight(.semibold)).lineLimit(1)
+                                Label(passkey.rpId, systemImage: "globe").font(.subheadline).foregroundStyle(M3.primary).lineLimit(1).labelStyle(CompactLabel())
+                                if !passkey.userName.isEmpty {
+                                    Text(passkey.userName).font(.subheadline).foregroundStyle(M3.onSurfaceVariant).lineLimit(1)
+                                }
+                            }
+                            Spacer(minLength: 0)
+                            Image(systemName: "chevron.right").foregroundStyle(M3.onSurfaceVariant).font(.footnote)
+                        }
+                        .padding(.horizontal, 16).padding(.vertical, 12)
+                        .contentShape(Rectangle())
+                    }
+                    .buttonStyle(.plain)
+                    .foregroundStyle(M3.onSurface)
+                    .background(M3.primaryContainer.opacity(0.45), in: SegmentShape(index: index, count: items.count))
+                    .accessibilityLabel("Passkey \(passkey.itemName), \(passkey.userName)")
                 }
             }
         }
@@ -204,7 +278,7 @@ private struct PickerList: View {
     private func pick(_ row: ProviderRow) {
         let offer = domain.flatMap { bridge.linkOffer(id: row.id, identifier: $0) }
         if offer == nil && !row.needsConfirmation {
-            onDone(.init(row: row, acceptedLink: nil, text: textValue(row)))
+            onDone(.init(row: row, text: textValue(row)))
         } else {
             pending = (row, offer)
         }
@@ -263,5 +337,107 @@ struct SegmentShape: Shape {
 private struct CompactLabel: LabelStyle {
     func makeBody(configuration: Configuration) -> some View {
         HStack(spacing: 4) { configuration.icon.font(.caption); configuration.title }
+    }
+}
+
+/// "Save passkey": into a new login (default) or a login for this site that has none yet.
+struct NewPasskeyView: View {
+    let site: String
+    let user: String
+    let targets: [PasskeyTarget]
+    let onDone: (ExtensionRoot.Result?) -> Void
+
+    var body: some View {
+        VStack(spacing: 0) {
+            HStack {
+                VStack(alignment: .leading, spacing: 2) {
+                    Text("Passkey speichern").font(.system(size: 28, weight: .bold))
+                    Text(site).font(.subheadline).foregroundStyle(M3.onSurfaceVariant)
+                }
+                Spacer()
+                GlassCloseButton { onDone(nil) }
+            }
+            .padding(.horizontal, 20).padding(.top, 16).padding(.bottom, 12)
+
+            ScrollView {
+                VStack(alignment: .leading, spacing: 20) {
+                    VStack(spacing: 14) {
+                        M3Emblem(symbol: "person.badge.key.fill", size: 96, busy: false)
+                        VStack(spacing: 4) {
+                            Text(user.isEmpty ? site : user).font(.title3.weight(.bold)).multilineTextAlignment(.center)
+                            Text("Der Passkey wird verschlüsselt in deinem Vaultwarden gespeichert und ist danach auf allen deinen Geräten verfügbar.")
+                                .font(.subheadline).foregroundStyle(M3.onSurfaceVariant).multilineTextAlignment(.center)
+                        }
+                    }
+                    .padding(20).frame(maxWidth: .infinity)
+                    .background(M3.surface, in: RoundedRectangle(cornerRadius: 28, style: .continuous))
+
+                    Button { onDone(.init()) } label: { Label("Als neuen Eintrag speichern", systemImage: "plus") }
+                        .buttonStyle(M3ButtonStyle())
+
+                    if !targets.isEmpty {
+                        VStack(alignment: .leading, spacing: 8) {
+                            Text("Oder zu einem Login hinzufügen").font(.subheadline.weight(.semibold)).foregroundStyle(M3.primary).padding(.leading, 4)
+                            VStack(spacing: 2) {
+                                ForEach(Array(targets.enumerated()), id: \.element.id) { index, target in
+                                    Button { onDone(.init(passkeyTarget: target.cipherId)) } label: {
+                                        HStack(spacing: 16) {
+                                            Text(String(target.name.prefix(1)).uppercased())
+                                                .font(.system(size: 18, weight: .bold))
+                                                .frame(width: 44, height: 44)
+                                                .foregroundStyle(M3.onPrimaryContainer)
+                                                .background(M3.primaryContainer, in: RoundedRectangle(cornerRadius: 14, style: .continuous))
+                                            VStack(alignment: .leading, spacing: 2) {
+                                                Text(target.name).font(.body.weight(.semibold)).lineLimit(1)
+                                                Text(target.host).font(.subheadline).foregroundStyle(M3.primary).lineLimit(1)
+                                                if !target.userName.isEmpty {
+                                                    Text(target.userName).font(.subheadline).foregroundStyle(M3.onSurfaceVariant).lineLimit(1)
+                                                }
+                                            }
+                                            Spacer(minLength: 0)
+                                            Image(systemName: "plus.circle.fill").foregroundStyle(M3.primary)
+                                        }
+                                        .padding(.horizontal, 16).padding(.vertical, 12)
+                                        .contentShape(Rectangle())
+                                    }
+                                    .buttonStyle(.plain)
+                                    .foregroundStyle(M3.onSurface)
+                                    .background(M3.surface, in: SegmentShape(index: index, count: targets.count))
+                                }
+                            }
+                        }
+                    }
+                }
+                .padding(16)
+            }
+        }
+    }
+}
+
+/// Shown while a passkey is signed or uploaded; keeps an error on screen until it is closed.
+struct PasskeyProgressView: View {
+    let title: String
+    let failure: String?
+    let onClose: () -> Void
+
+    var body: some View {
+        ZStack {
+            M3.surfaceContainer.ignoresSafeArea()
+            VStack(spacing: 24) {
+                HStack {
+                    Spacer()
+                    GlassCloseButton(label: "Schließen", action: onClose)
+                }
+                Spacer()
+                M3Emblem(symbol: failure == nil ? "person.badge.key.fill" : "exclamationmark.triangle.fill", size: 140, busy: failure == nil)
+                Text(title).font(.system(size: 24, weight: .bold)).multilineTextAlignment(.center)
+                if let failure {
+                    M3Error(text: failure)
+                    Button("Schließen", action: onClose).buttonStyle(M3ButtonStyle(kind: .tonal, height: 48))
+                }
+                Spacer()
+            }
+            .padding(24)
+        }
     }
 }

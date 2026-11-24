@@ -33,6 +33,7 @@ import com.framepersecond.m3bitwarden.data.CustomFieldType
 import com.framepersecond.m3bitwarden.data.IdentityData
 import com.framepersecond.m3bitwarden.data.ItemType
 import com.framepersecond.m3bitwarden.data.LoginData
+import com.framepersecond.m3bitwarden.data.PasskeyInfo
 import com.framepersecond.m3bitwarden.data.PasswordHistoryEntry
 import com.framepersecond.m3bitwarden.data.SshKeyData
 import com.framepersecond.m3bitwarden.data.VaultItem
@@ -211,7 +212,7 @@ fun Cipher.toRequestJson(): JSONObject = JSONObject().apply {
 private fun relative(instant: Instant): String =
     DateUtils.getRelativeTimeSpanString(instant.toEpochMilli(), System.currentTimeMillis(), DateUtils.MINUTE_IN_MILLIS).toString()
 
-fun CipherView.toItem(folders: Map<String, String>): VaultItem? {
+fun CipherView.toItem(folders: Map<String, String>, passkeys: List<PasskeyInfo> = emptyList()): VaultItem? {
     val id = id ?: return null
     val uris = login?.uris.orEmpty().mapNotNull { it.uri }.filter { it.isNotEmpty() }
     val kind = when (type) {
@@ -237,6 +238,7 @@ fun CipherView.toItem(folders: Map<String, String>): VaultItem? {
                 totpSecret = it.totp,
                 additionalUris = uris.drop(1),
                 passkeys = it.fido2Credentials?.size ?: 0,
+                passkeyDetails = passkeys,
             )
         },
         card = card?.let { CardData(it.cardholderName.orEmpty(), it.brand.orEmpty(), it.number.orEmpty(), it.expMonth.orEmpty(), it.expYear.orEmpty(), it.code.orEmpty()) },

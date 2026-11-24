@@ -221,7 +221,7 @@ extension CipherRequestModel {
 
 extension CipherView {
     /// The UI model; [folders] maps folder ids to their decrypted names.
-    func kotlinItem(folders: [String: String]) -> VaultItem? {
+    func kotlinItem(folders: [String: String], passkeys: [PasskeyEntry] = []) -> VaultItem? {
         guard let id else { return nil }
         let uris = (login?.uris ?? []).compactMap(\.uri).filter { !$0.isEmpty }
         let kind: ItemType
@@ -248,7 +248,10 @@ extension CipherView {
                     uri: uris.first ?? "",
                     totpSecret: $0.totp,
                     additionalUris: Array(uris.dropFirst()),
-                    passkeys: Int32($0.fido2Credentials?.count ?? 0)
+                    passkeys: Int32($0.fido2Credentials?.count ?? 0),
+                    passkeyDetails: passkeys.map {
+                        PasskeyInfo(site: $0.rpId, userName: $0.userName, createdLabel: $0.created.map(Self.day.string(from:)) ?? "")
+                    }
                 )
             },
             card: card.map {
@@ -295,6 +298,13 @@ extension CipherView {
         default: .text
         }
     }
+
+    private static let day: DateFormatter = {
+        let f = DateFormatter()
+        f.locale = Locale(identifier: "de_DE")
+        f.dateFormat = "dd.MM.yyyy"
+        return f
+    }()
 
     private static let relative: RelativeDateTimeFormatter = {
         let f = RelativeDateTimeFormatter()

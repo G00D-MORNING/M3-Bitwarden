@@ -27,6 +27,9 @@ import com.bitwarden.crypto.Kdf
 import com.bitwarden.sdk.Client
 import com.bitwarden.sdk.ManagedSettingsBindingClient
 import com.bitwarden.vault.CipherView
+import com.bitwarden.vault.EncryptionContext
+import com.framepersecond.m3bitwarden.android.passkey.PasskeyEngine
+import com.framepersecond.m3bitwarden.android.passkey.PasskeyException
 import com.bitwarden.vault.FolderView
 import com.framepersecond.m3bitwarden.AppSettings
 import com.framepersecond.m3bitwarden.data.Folder
@@ -364,8 +367,9 @@ class AndroidVault private constructor(private val context: Context) : VaultBack
         }.orEmpty()
         equivalentDomains = groups
 
+        val engine = passkeyEngine()
         VaultSession.loadLive(
-            items = result.successes.mapNotNull { it.toItem(folderNames) },
+            items = result.successes.mapNotNull { it.toItem(folderNames, engine?.details(it).orEmpty()) },
             folders = folders.mapNotNull { f -> f.id?.let { Folder(it, f.name) } },
         )
         if (result.failures.isNotEmpty()) VaultSession.syncStatus = "${result.failures.size} Einträge nicht lesbar"
@@ -451,6 +455,27 @@ class AndroidVault private constructor(private val context: Context) : VaultBack
         id == null -> null
         id.startsWith(VaultRepository.LOCAL_PREFIX) -> folderIds[id] ?: VaultSession.serverIdFor(id)
         else -> id
+    }
+
+    // MARK: Passkeys
+
+    /** Passkeys of the open vault for Credential Manager; null while locked. */
+    fun passkeyEngine(): PasskeyEngine? {
+        val client = client ?: return null
+        return PasskeyEngine(client, decrypted) { context -> uploadPasskey(context) }
+    }
+
+    /** Uploads a login with a new or changed passkey and returns its server id. */
+    private suspend fun uploadPasskey(context: EncryptionContext): String {
+        val body = context.cipher.toRequestJson()
+        val id = context.cipher.id
+        val saved = try {
+            if (id != null) api.updateCipher(id, body) else api.createCipher(body)
+        } catch (e: Exception) {
+            throw PasskeyException("Der Passkey konnte nicht in Vaultwarden gespeichert werden: ${e.message}")
+        }
+        scope.launch { syncQuietly() }
+        return saved.str("id") ?: id ?: throw PasskeyException("Vaultwarden hat keine Antwort geschickt.")
     }
 
     /** Encrypts the change with the SDK and uploads it; the next sync replaces the optimistic copy. */

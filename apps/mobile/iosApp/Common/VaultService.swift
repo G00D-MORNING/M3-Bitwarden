@@ -26,10 +26,10 @@ final class VaultService: NSObject, ObservableObject {
     /// Two-factor providers the server asked for during login (0 = authenticator app, 1 = e-mail).
     @Published private(set) var twoFactorProviders: [Int] = []
 
-    private let api = VaultwardenAPI.shared
-    private var client: Client?
-    private var encrypted: [String: BitwardenSdk.Cipher] = [:]
-    private var decrypted: [String: CipherView] = [:]
+    let api = VaultwardenAPI.shared
+    private(set) var client: Client?
+    private(set) var encrypted: [String: BitwardenSdk.Cipher] = [:]
+    private(set) var decrypted: [String: CipherView] = [:]
     private var pendingLogin: (email: String, hash: String, password: String, kdf: Kdf)?
     private var backgroundedAt: Date?
 
@@ -270,9 +270,10 @@ final class VaultService: NSObject, ObservableObject {
         var groups = (response.domains?.equivalentDomains ?? []).map { Set($0.map { $0.lowercased() }) }
         groups += (response.domains?.globalEquivalentDomains ?? []).filter { !$0.excluded }.map { Set($0.domains.map { $0.lowercased() }) }
         CredentialProviderBridge.shared.equivalentDomains = groups
+        let passkeysById = Dictionary(grouping: passkeys(), by: \.cipherId)
 
         VaultSession.shared.loadLive(
-            items: result.successes.compactMap { $0.kotlinItem(folders: folderNames) },
+            items: result.successes.compactMap { $0.kotlinItem(folders: folderNames, passkeys: passkeysById[$0.id ?? ""] ?? []) },
             folders: folders.compactMap { f in f.id.map { Shared.Folder(id: $0, name: f.name) } }
         )
         if !result.failures.isEmpty {

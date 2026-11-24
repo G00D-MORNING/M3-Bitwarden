@@ -30,6 +30,9 @@ struct RootView: View {
             }
         }
         .animation(.spring(response: 0.5, dampingFraction: 0.85), value: service.phase)
+        #if DEBUG
+        .task { await PasskeySelfTest.runIfRequested() }
+        #endif
         .onChange(of: scenePhase) { _, phase in
             switch phase {
             case .background: service.appDidEnterBackground()
