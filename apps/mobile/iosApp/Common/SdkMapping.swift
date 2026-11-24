@@ -229,22 +229,16 @@ extension CipherView {
         case .login: kind = .login
         case .card: kind = .card
         case .identity: kind = .identity
-        case .sshKey: kind = .sshKey
+        case .sshKey: kind = .sshkey
         default: kind = .note
         }
-        let fullName = [identity?.title, identity?.firstName, identity?.middleName, identity?.lastName]
-            .compactMap { $0 }.filter { !$0.isEmpty }.joined(separator: " ")
-        let address = [
-            identity?.address1, identity?.address2, identity?.address3,
-            [identity?.postalCode, identity?.city].compactMap { $0 }.filter { !$0.isEmpty }.joined(separator: " "),
-            identity?.country,
-        ].compactMap { $0 }.filter { !$0.isEmpty }.joined(separator: "\n")
 
         return VaultItem(
             id: id,
             name: name,
             type: kind,
             folder: folderId.flatMap { folders[$0] },
+            folderId: folderId,
             favorite: favorite,
             notes: notes ?? "",
             login: login.map {
@@ -253,19 +247,53 @@ extension CipherView {
                     password: $0.password ?? "",
                     uri: uris.first ?? "",
                     totpSecret: $0.totp,
-                    additionalUris: Array(uris.dropFirst())
+                    additionalUris: Array(uris.dropFirst()),
+                    passkeys: Int32($0.fido2Credentials?.count ?? 0)
                 )
             },
             card: card.map {
                 CardData(cardholder: $0.cardholderName ?? "", brand: $0.brand ?? "", number: $0.number ?? "",
                          expMonth: $0.expMonth ?? "", expYear: $0.expYear ?? "", code: $0.code ?? "")
             },
-            identity: identity.map {
-                IdentityData(fullName: fullName, email: $0.email ?? "", phone: $0.phone ?? "", address: address, company: $0.company ?? "")
+            identity: identity.map { i in
+                IdentityData(
+                    title: i.title ?? "", firstName: i.firstName ?? "", middleName: i.middleName ?? "", lastName: i.lastName ?? "",
+                    username: i.username ?? "", company: i.company ?? "", email: i.email ?? "", phone: i.phone ?? "",
+                    address1: i.address1 ?? "", address2: i.address2 ?? "", address3: i.address3 ?? "",
+                    postalCode: i.postalCode ?? "", city: i.city ?? "", state: i.state ?? "", country: i.country ?? "",
+                    ssn: i.ssn ?? "", passportNumber: i.passportNumber ?? "", licenseNumber: i.licenseNumber ?? ""
+                )
             },
             sshKey: sshKey.map { SshKeyData(publicKey: $0.publicKey, fingerprint: $0.fingerprint, privateKey: $0.privateKey) },
-            updatedLabel: Self.relative.localizedString(for: revisionDate, relativeTo: Date())
+            fields: (fields ?? []).map { f in
+                CustomField(name: f.name ?? "", value: f.value ?? "", type: Self.kotlinFieldType(f.type))
+            },
+            passwordHistory: (passwordHistory ?? []).map {
+                PasswordHistoryEntry(password: $0.password, dateLabel: Self.relative.localizedString(for: $0.lastUsedDate, relativeTo: Date()))
+            },
+            updatedLabel: Self.relative.localizedString(for: revisionDate, relativeTo: Date()),
+            revisionEpoch: Int64(revisionDate.timeIntervalSince1970),
+            editable: edit,
+            shared: organizationId != nil
         )
+    }
+
+    private static func kotlinFieldType(_ t: BitwardenSdk.FieldType) -> Shared.CustomFieldType {
+        switch t {
+        case .text: .text
+        case .hidden: .hidden
+        case .boolean: .boolean
+        case .linked: .linked
+        }
+    }
+
+    private static func sdkFieldType(_ t: Shared.CustomFieldType) -> BitwardenSdk.FieldType {
+        switch t {
+        case .hidden: .hidden
+        case .boolean: .boolean
+        case .linked: .linked
+        default: .text
+        }
     }
 
     private static let relative: RelativeDateTimeFormatter = {
@@ -276,11 +304,11 @@ extension CipherView {
     }()
 
     /// Applies what the Kotlin UI can change to this decrypted cipher, keeping everything else
-    /// (custom fields, attachments, history, URI match rules) intact.
-    func applying(_ item: VaultItem, now: Date = Date()) -> CipherView {
+    /// (attachments, passkeys, URI match rules, linked fields) intact.
+    func applying(_ item: VaultItem, folderId newFolderId: String?, now: Date = Date()) -> CipherView {
+        var history = passwordHistory ?? []
         var newLogin = login
         if let l = login, let k = item.login {
-            var history = passwordHistory ?? []
             var revision = l.passwordRevisionDate
             if let old = l.password, !old.isEmpty, old != k.password {
                 history.insert(PasswordHistoryView(password: old, lastUsedDate: now), at: 0)
@@ -288,7 +316,7 @@ extension CipherView {
             }
             let existing = Dictionary((l.uris ?? []).compactMap { u in u.uri.map { ($0.lowercased(), u) } }, uniquingKeysWith: { a, _ in a })
             let uris = (k.allUris as [String]).map { existing[$0.lowercased()] ?? LoginUriView(uri: $0, match: nil, uriChecksum: nil) }
-            newLogin = LoginView(
+            newLogin = BitwardenSdk.LoginView(
                 username: k.username.isEmpty ? nil : k.username,
                 password: k.password.isEmpty ? nil : k.password,
                 passwordRevisionDate: revision,
@@ -298,31 +326,54 @@ extension CipherView {
                 httpAuthenticationEnabled: l.httpAuthenticationEnabled,
                 fido2Credentials: l.fido2Credentials
             )
-            return copy(name: item.name, notes: item.notes, favorite: item.favorite, login: newLogin, passwordHistory: Array(history.prefix(5)))
         }
-        return copy(name: item.name, notes: item.notes, favorite: item.favorite, login: newLogin, passwordHistory: passwordHistory)
-    }
+        // Hidden custom fields keep their history too, like the official clients.
+        let oldHidden = Dictionary((fields ?? []).filter { $0.type == .hidden }.compactMap { f in f.name.map { ($0, f.value) } }, uniquingKeysWith: { a, _ in a })
+        for f in item.fields where f.type == .hidden {
+            if let old = oldHidden[f.name] ?? nil, !old.isEmpty, old != f.value {
+                history.insert(PasswordHistoryView(password: "\(f.name): \(old)", lastUsedDate: now), at: 0)
+            }
+        }
+        let linked = (fields ?? []).filter { $0.type == .linked }
+        let newFields = item.fields.filter { $0.type != .linked }.map {
+            FieldView(name: $0.name, value: $0.value, type: Self.sdkFieldType($0.type), linkedId: nil)
+        } + linked
 
-    private func copy(name: String, notes: String, favorite: Bool, login: LoginView?, passwordHistory: [PasswordHistoryView]?) -> CipherView {
-        CipherView(
-            id: id, organizationId: organizationId, folderId: folderId, collectionIds: collectionIds, key: key,
-            name: name, notes: notes.isEmpty ? nil : notes, type: type, login: login, identity: identity, card: card,
-            secureNote: secureNote, sshKey: sshKey, bankAccount: bankAccount, driversLicense: driversLicense, passport: passport,
-            favorite: favorite, reprompt: reprompt, organizationUseTotp: organizationUseTotp, edit: edit,
+        return CipherView(
+            id: id, organizationId: organizationId, folderId: newFolderId, collectionIds: collectionIds, key: key,
+            name: item.name, notes: item.notes.isEmpty ? nil : item.notes, type: type,
+            login: newLogin,
+            identity: item.identity.map(Self.identityView) ?? identity,
+            card: item.card.map(Self.cardView) ?? card,
+            secureNote: secureNote, sshKey: item.sshKey.map(Self.sshKeyView) ?? sshKey,
+            bankAccount: bankAccount, driversLicense: driversLicense, passport: passport,
+            favorite: item.favorite, reprompt: reprompt, organizationUseTotp: organizationUseTotp, edit: edit,
             permissions: permissions, viewPassword: viewPassword, localData: localData, attachments: attachments,
-            attachmentDecryptionFailures: attachmentDecryptionFailures, fields: fields, passwordHistory: passwordHistory,
+            attachmentDecryptionFailures: attachmentDecryptionFailures, fields: newFields.isEmpty ? nil : newFields,
+            passwordHistory: history.isEmpty ? nil : Array(history.prefix(5)),
             creationDate: creationDate, deletedDate: deletedDate, revisionDate: revisionDate, archivedDate: archivedDate,
             partial: partial
         )
     }
 
-    /// A new login created in the app or saved through autofill.
-    static func newLogin(from item: VaultItem, now: Date = Date()) -> CipherView {
+    /// A new item created in the app or saved through autofill.
+    static func new(from item: VaultItem, folderId: String?, now: Date = Date()) -> CipherView {
         let k = item.login
+        let type: CipherType
+        switch item.type {
+        case .card: type = .card
+        case .identity: type = .identity
+        case .note: type = .secureNote
+        case .sshkey: type = .sshKey
+        default: type = .login
+        }
+        let fields = item.fields.filter { $0.type != .linked }.map {
+            FieldView(name: $0.name, value: $0.value, type: sdkFieldType($0.type), linkedId: nil)
+        }
         return CipherView(
-            id: nil, organizationId: nil, folderId: nil, collectionIds: [], key: nil,
-            name: item.name, notes: item.notes.isEmpty ? nil : item.notes, type: .login,
-            login: LoginView(
+            id: nil, organizationId: nil, folderId: folderId, collectionIds: [], key: nil,
+            name: item.name, notes: item.notes.isEmpty ? nil : item.notes, type: type,
+            login: type != .login ? nil : BitwardenSdk.LoginView(
                 username: k?.username.isEmpty == false ? k?.username : nil,
                 password: k?.password.isEmpty == false ? k?.password : nil,
                 passwordRevisionDate: nil,
@@ -332,10 +383,34 @@ extension CipherView {
                 httpAuthenticationEnabled: nil,
                 fido2Credentials: nil
             ),
-            identity: nil, card: nil, secureNote: nil, sshKey: nil, bankAccount: nil, driversLicense: nil, passport: nil,
+            identity: type == .identity ? item.identity.map(identityView) : nil,
+            card: type == .card ? item.card.map(cardView) : nil,
+            secureNote: type == .secureNote ? SecureNoteView(type: .generic) : nil,
+            sshKey: type == .sshKey ? item.sshKey.map(sshKeyView) : nil,
+            bankAccount: nil, driversLicense: nil, passport: nil,
             favorite: item.favorite, reprompt: .none, organizationUseTotp: false, edit: true, permissions: nil,
-            viewPassword: true, localData: nil, attachments: nil, attachmentDecryptionFailures: nil, fields: nil,
+            viewPassword: true, localData: nil, attachments: nil, attachmentDecryptionFailures: nil,
+            fields: fields.isEmpty ? nil : fields,
             passwordHistory: nil, creationDate: now, deletedDate: nil, revisionDate: now, archivedDate: nil, partial: false
         )
+    }
+
+    private static func opt(_ s: String) -> String? { s.isEmpty ? nil : s }
+
+    private static func cardView(_ c: CardData) -> CardView {
+        CardView(cardholderName: opt(c.cardholder), expMonth: opt(c.expMonth), expYear: opt(c.expYear), code: opt(c.code), brand: opt(c.brand), number: opt(c.number))
+    }
+
+    private static func identityView(_ i: IdentityData) -> IdentityView {
+        IdentityView(
+            title: opt(i.title), firstName: opt(i.firstName), middleName: opt(i.middleName), lastName: opt(i.lastName),
+            address1: opt(i.address1), address2: opt(i.address2), address3: opt(i.address3), city: opt(i.city), state: opt(i.state),
+            postalCode: opt(i.postalCode), country: opt(i.country), company: opt(i.company), email: opt(i.email), phone: opt(i.phone),
+            ssn: opt(i.ssn), username: opt(i.username), passportNumber: opt(i.passportNumber), licenseNumber: opt(i.licenseNumber)
+        )
+    }
+
+    private static func sshKeyView(_ k: SshKeyData) -> SshKeyView {
+        SshKeyView(privateKey: k.privateKey, publicKey: k.publicKey, fingerprint: k.fingerprint)
     }
 }

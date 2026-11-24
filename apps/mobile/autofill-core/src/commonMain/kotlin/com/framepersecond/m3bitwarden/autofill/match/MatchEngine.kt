@@ -46,7 +46,10 @@ class MatchEngine(
             val candidates = buildList {
                 addAll(matchApp(cred, target))
                 if (webUrl != null) addAll(matchWeb(cred, webUrl, target))
-                if (webUrl == null && target.appId != null) addAll(matchViaAppDomains(cred, verifiedForApp))
+                if (webUrl == null && target.appId != null) {
+                    addAll(matchViaAppDomains(cred, verifiedForApp))
+                    if (verifiedForApp.isEmpty()) addAll(matchViaKnownApp(cred, target.appId))
+                }
             }
             val best = candidates.maxByOrNull { it.strength } ?: return@mapNotNull null
             val needsConfirm = best.requiresConfirmation ||
@@ -120,7 +123,13 @@ class MatchEngine(
                     when {
                         storedHost == pageHost -> out += m(94, MatchReason.Host)
                         page.isIp || stored.isIp -> Unit // IPs only ever match exactly
-                        stored.registrableDomain != null && stored.registrableDomain == page.registrableDomain -> out += m(86, MatchReason.Domain)
+                        stored.registrableDomain != null && stored.registrableDomain == page.registrableDomain -> {
+                            // A login saved for the bare domain (or www.) covers every subdomain. One saved
+                            // for a sibling subdomain (nas.example.com on mail.example.com) is only a
+                            // suggestion, so self-hosted services under one domain stay apart.
+                            val bare = storedHost == stored.registrableDomain || storedHost == "www.${stored.registrableDomain}"
+                            out += if (bare) m(86, MatchReason.Domain) else m(SIBLING_SUBDOMAIN, MatchReason.Domain)
+                        }
                         stored.registrableDomain != null && page.registrableDomain != null &&
                             equivalents[stored.registrableDomain]?.contains(page.registrableDomain) == true ->
                             out += m(72, MatchReason.EquivalentDomain)
@@ -148,6 +157,26 @@ class MatchEngine(
                 Match(cred, 88, MatchReason.AppVerifiedDomain)
             } else {
                 null
+            }
+        }
+    }
+
+    /**
+     * Popular apps whose website we know, and reverse-domain package names ("de.dkb.portalapp" →
+     * dkb.de). Strong enough to be listed first among the suggestions, never filled silently.
+     */
+    private fun matchViaKnownApp(cred: Credential, appId: String): List<Match> {
+        val known = KnownApps.domainsFor(appId)
+        val guess = KnownApps.reverseDomainGuess(appId)
+        if (known.isEmpty() && guess == null) return emptyList()
+        return cred.uris.mapNotNull { u ->
+            if (u.match == UriMatch.Never) return@mapNotNull null
+            val reg = UrlInfo.parse(u.uri)?.registrableDomain ?: return@mapNotNull null
+            val sameGroup = { d: String -> reg == d || equivalents[reg].orEmpty().contains(d) }
+            when {
+                known.any(sameGroup) -> Match(cred, 80, MatchReason.KnownApp, requiresConfirmation = true)
+                guess != null && sameGroup(guess) -> Match(cred, 70, MatchReason.KnownApp, requiresConfirmation = true)
+                else -> null
             }
         }
     }
@@ -183,6 +212,7 @@ class MatchEngine(
 
     companion object {
         const val PRIMARY_THRESHOLD = 60
+        const val SIBLING_SUBDOMAIN = 55
 
         private val GENERIC_APP_TOKENS = setOf(
             "com", "org", "net", "de", "at", "ch", "co", "uk", "io", "app", "apps", "android", "ios", "mobile", "client",

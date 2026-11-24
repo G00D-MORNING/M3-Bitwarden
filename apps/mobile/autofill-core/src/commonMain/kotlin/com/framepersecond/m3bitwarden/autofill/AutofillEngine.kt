@@ -11,14 +11,29 @@ import com.framepersecond.m3bitwarden.autofill.match.MatchEngine
 import com.framepersecond.m3bitwarden.autofill.match.MatchReason
 import com.framepersecond.m3bitwarden.autofill.match.MatchResult
 import com.framepersecond.m3bitwarden.autofill.model.AutofillNode
+import com.framepersecond.m3bitwarden.autofill.model.FieldFormat
 import com.framepersecond.m3bitwarden.autofill.model.FieldType
 import com.framepersecond.m3bitwarden.autofill.suggest.LinkSuggestion
 import com.framepersecond.m3bitwarden.autofill.suggest.Suggester
 
 /** Which secret of an item goes into which field. Resolved to real values by the platform. */
-enum class ValueKind { Username, Password, Totp, CardNumber, CardHolder, CardExpiry, CardExpiryMonth, CardExpiryYear, CardCvv, FullName, FirstName, LastName, Email, Phone, Address, PostalCode, City, Country, Organization }
+enum class ValueKind {
+    Username, Password, Totp, CardNumber, CardHolder, CardExpiry, CardExpiryMonth, CardExpiryYear, CardCvv, CardBrand,
+    FullName, FirstName, LastName, Email, Phone, PhoneCountryCode, PhoneAreaCode, PhoneLocal, Address, Street, HouseNumber, AddressLine2, PostalCode, City, State,
+    Country, Organization, Title,
+}
 
-data class FieldAssignment(val fieldId: String, val value: ValueKind, val otpDigitIndex: Int = -1)
+/**
+ * One field to fill: which value of the picked item, and what the field tells about its format
+ * (placeholder, length, list options), so [com.framepersecond.m3bitwarden.autofill.format.ValueFormatter]
+ * can shape the value ("08/29" vs "08/2029", "Deutschland" vs "DE", option index for selects).
+ */
+data class FieldAssignment(
+    val fieldId: String,
+    val value: ValueKind,
+    val otpDigitIndex: Int = -1,
+    val format: FieldFormat = FieldFormat(),
+)
 
 data class FillPlan(
     val analysis: FormAnalysis,
@@ -42,25 +57,34 @@ data class FillPlan(
                 // Never put an existing password into a sign-up form; the generator fills those.
                 FieldType.NewPassword, FieldType.ConfirmPassword -> null
                 FieldType.Otp -> ValueKind.Totp
-                FieldType.OtpDigit -> { out += FieldAssignment(field.id, ValueKind.Totp, digit++); null }
+                FieldType.OtpDigit -> { out += FieldAssignment(field.id, ValueKind.Totp, digit++, field.format); null }
                 FieldType.CardNumber -> ValueKind.CardNumber
                 FieldType.CardHolder -> ValueKind.CardHolder
                 FieldType.CardExpiry -> ValueKind.CardExpiry
                 FieldType.CardExpiryMonth -> ValueKind.CardExpiryMonth
                 FieldType.CardExpiryYear -> ValueKind.CardExpiryYear
                 FieldType.CardCvv -> ValueKind.CardCvv
+                FieldType.CardBrand -> ValueKind.CardBrand
                 FieldType.FullName -> ValueKind.FullName
                 FieldType.FirstName -> ValueKind.FirstName
                 FieldType.LastName -> ValueKind.LastName
                 FieldType.Phone -> ValueKind.Phone
+                FieldType.PhoneCountryCode -> ValueKind.PhoneCountryCode
+                FieldType.PhoneAreaCode -> ValueKind.PhoneAreaCode
+                FieldType.PhoneLocal -> ValueKind.PhoneLocal
                 FieldType.Address -> ValueKind.Address
+                FieldType.Street -> ValueKind.Street
+                FieldType.HouseNumber -> ValueKind.HouseNumber
+                FieldType.AddressLine2 -> ValueKind.AddressLine2
                 FieldType.PostalCode -> ValueKind.PostalCode
                 FieldType.City -> ValueKind.City
+                FieldType.State -> ValueKind.State
                 FieldType.Country -> ValueKind.Country
                 FieldType.Organization -> ValueKind.Organization
+                FieldType.Title -> ValueKind.Title
                 FieldType.Unknown -> null
             }
-            if (kind != null) out += FieldAssignment(field.id, kind)
+            if (kind != null) out += FieldAssignment(field.id, kind, format = field.format)
         }
         return out
     }

@@ -4,6 +4,8 @@
 <dict>
 	<key>CFBundleDevelopmentRegion</key>
 	<string>$(DEVELOPMENT_LANGUAGE)</string>
+	<key>CFBundleDisplayName</key>
+	<string>M3 Bitwarden</string>
 	<key>CFBundleExecutable</key>
 	<string>$(EXECUTABLE_NAME)</string>
 	<key>CFBundleIdentifier</key>
@@ -15,22 +17,20 @@
 	<key>CFBundlePackageType</key>
 	<string>$(PRODUCT_BUNDLE_PACKAGE_TYPE)</string>
 	<key>CFBundleShortVersionString</key>
-	<string>1.0</string>
+	<string>1.0.0</string>
 	<key>CFBundleVersion</key>
-	<string>1</string>
-	<key>CFBundleDisplayName</key>
-	<string>M3 Bitwarden</string>
-	<key>NSFaceIDUsageDescription</key>
-	<string>Zum Entsperren des Tresors beim automatischen Ausfüllen.</string>
+	<string>202611240836</string>
+	<key>ITSAppUsesNonExemptEncryption</key>
+	<false/>
 	<key>NSExtension</key>
 	<dict>
 		<key>NSExtensionAttributes</key>
 		<dict>
 			<key>ASCredentialProviderExtensionCapabilities</key>
 			<dict>
-				<key>ProvidesPasswords</key>
-				<true/>
 				<key>ProvidesOneTimeCodes</key>
+				<true/>
+				<key>ProvidesPasswords</key>
 				<true/>
 				<key>ProvidesTextToInsert</key>
 				<true/>
@@ -43,5 +43,7 @@
 		<key>NSExtensionPrincipalClass</key>
 		<string>$(PRODUCT_MODULE_NAME).CredentialProviderViewController</string>
 	</dict>
+	<key>NSFaceIDUsageDescription</key>
+	<string>Zum Entsperren des Tresors beim automatischen Ausfüllen.</string>
 </dict>
 </plist>

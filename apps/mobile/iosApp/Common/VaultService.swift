@@ -44,6 +44,16 @@ final class VaultService: NSObject, ObservableObject {
     var account: StoredAccount? { SecureStore.getCodable(StoredAccount.self, .account) }
     var canUseBiometrics: Bool { SecureStore.hasUserKey }
 
+    /// User preference; when off, the vault key is never stored behind Face ID.
+    private var biometricsWanted: Bool {
+        get { UserDefaults(suiteName: M3BConfig.appGroup)?.object(forKey: "biometricUnlock") as? Bool ?? true }
+        set { UserDefaults(suiteName: M3BConfig.appGroup)?.set(newValue, forKey: "biometricUnlock") }
+    }
+
+    private var writeQueue: Task<Void, Never>?
+    /// Local folder id -> server id, for folders created in this session.
+    private var folderIds: [String: String] = [:]
+
     func refreshPhase() {
         if !DeviceCertificate.isInstalled {
             phase = .needsCertificate
@@ -138,7 +148,7 @@ final class VaultService: NSObject, ObservableObject {
     func unlockWithBiometrics(syncTimeout: TimeInterval? = nil) async -> Bool {
         await run {
             guard let account = self.account,
-                  let key = SecureStore.get(.userKey, reason: "Tresor entsperren"),
+                  let key = await SecureStore.userKey(reason: "Tresor entsperren"),
                   let userKey = String(data: key, encoding: .utf8)
             else { return }
             try await self.unlock(client: self.makeClient(), account: account, method: .decryptedKey(decryptedUserKey: userKey))
@@ -155,20 +165,23 @@ final class VaultService: NSObject, ObservableObject {
         VaultSession.shared.lock() // triggers wipe() through the listener
     }
 
-    func logout() {
+    func signOut() {
         lock()
         SecureStore.delete(.tokens)
         SecureStore.delete(.account)
         SecureStore.delete(.userKey)
         VaultCache.clear()
         Task { await CredentialIdentitySync.clear() }
+        VaultSession.shared.disconnect()
+        folderIds = [:]
         phase = .signedOut
     }
 
     func appDidEnterBackground() { backgroundedAt = Date() }
 
     func appWillEnterForeground() {
-        if let since = backgroundedAt, Date().timeIntervalSince(since) > M3BConfig.autoLockSeconds { lock() }
+        let timeout = AppSettings.shared.timeoutSeconds
+        if let since = backgroundedAt, timeout >= 0, Date().timeIntervalSince(since) >= TimeInterval(timeout) { lock() }
         backgroundedAt = nil
         if phase == .unlocked { Task { await syncQuietly() } }
     }
@@ -191,7 +204,7 @@ final class VaultService: NSObject, ObservableObject {
         ))
         self.client = client
         // Keep the user key behind Face ID so the next unlock (and the extension) skip the password.
-        if case .masterPasswordUnlock = method {
+        if case .masterPasswordUnlock = method, biometricsWanted {
             let userKey = try await client.crypto().getUserEncryptionKey()
             try? SecureStore.set(Data(userKey.utf8), for: .userKey)
         }
@@ -203,6 +216,8 @@ final class VaultService: NSObject, ObservableObject {
     // MARK: Sync
 
     func sync() async throws {
+        VaultSession.shared.syncing = true
+        defer { VaultSession.shared.syncing = false }
         let data = try await api.sync()
         try VaultCache.save(data)
         try await publish(syncData: data)
@@ -226,7 +241,7 @@ final class VaultService: NSObject, ObservableObject {
             VaultSession.shared.syncStatus = "Offline-Daten"
         } catch {
             VaultSession.shared.syncStatus = "Nicht aktualisiert"
-            if phase == .unlocked, (error as? VaultwardenAPI.Failure) != nil { errorMessage = error.localizedDescription }
+            if phase == .unlocked, (error as? VaultwardenAPI.Failure) != nil { VaultSession.shared.message = error.localizedDescription }
         }
     }
 
@@ -243,7 +258,7 @@ final class VaultService: NSObject, ObservableObject {
         }
 
         let folders = (try? client.vault().folders().decryptList(folders: (response.folders ?? []).map {
-            Folder(id: $0.id, name: $0.name, revisionDate: $0.revisionDate)
+            BitwardenSdk.Folder(id: $0.id, name: $0.name, revisionDate: $0.revisionDate)
         })) ?? []
         let folderNames = Dictionary(folders.compactMap { f in f.id.map { ($0, f.name) } }, uniquingKeysWith: { a, _ in a })
 
@@ -256,7 +271,10 @@ final class VaultService: NSObject, ObservableObject {
         groups += (response.domains?.globalEquivalentDomains ?? []).filter { !$0.excluded }.map { Set($0.domains.map { $0.lowercased() }) }
         CredentialProviderBridge.shared.equivalentDomains = groups
 
-        VaultSession.shared.loadLive(items: result.successes.compactMap { $0.kotlinItem(folders: folderNames) })
+        VaultSession.shared.loadLive(
+            items: result.successes.compactMap { $0.kotlinItem(folders: folderNames) },
+            folders: folders.compactMap { f in f.id.map { Shared.Folder(id: $0, name: f.name) } }
+        )
         if !result.failures.isEmpty {
             VaultSession.shared.syncStatus = "\(result.failures.count) Einträge nicht lesbar"
         }
@@ -278,6 +296,15 @@ final class VaultService: NSObject, ObservableObject {
             ),
             managedSettings: ManagedSettingsBindingClient()
         )
+    }
+
+    /// Runs uploads one after another, so a new folder exists before an item is moved into it.
+    private func enqueue(_ work: @escaping @MainActor () async -> Void) {
+        let previous = writeQueue
+        writeQueue = Task { @MainActor in
+            await previous?.value
+            await work()
+        }
     }
 
     private func run(_ work: @escaping () async throws -> Void) async {
@@ -319,17 +346,37 @@ extension VaultService: VaultBackend {
     nonisolated static let localPrefix = "local-"
 
     nonisolated func itemSaved(item: VaultItem, isNew: Bool) {
-        Task { @MainActor in await self.write(item: item, isNew: isNew) }
+        Task { @MainActor in self.enqueue { await self.write(item: item, isNew: isNew) } }
     }
 
     nonisolated func itemDeleted(id: String) {
         Task { @MainActor in
-            guard !id.hasPrefix(Self.localPrefix) else { return }
-            do {
-                try await self.api.softDeleteCipher(id: id)
-                try await self.sync()
-            } catch {
-                self.errorMessage = "Löschen fehlgeschlagen: \(error.localizedDescription)"
+            self.enqueue {
+                let serverId = id.hasPrefix(Self.localPrefix) ? VaultSession.shared.serverIdFor(localId: id) : id
+                guard let serverId else { return }
+                do {
+                    try await self.api.softDeleteCipher(id: serverId)
+                    try await self.sync()
+                } catch {
+                    VaultSession.shared.message = "Löschen fehlgeschlagen: \(error.localizedDescription)"
+                    await self.syncQuietly()
+                }
+            }
+        }
+    }
+
+    nonisolated func folderCreated(folder: Shared.Folder) {
+        Task { @MainActor in
+            self.enqueue {
+                guard let client = self.client else { return }
+                do {
+                    let encrypted = try client.vault().folders().encrypt(folder: FolderView(id: nil, name: folder.name, revisionDate: Date()))
+                    let created = try await self.api.createFolder(name: encrypted.name)
+                    self.folderIds[folder.id] = created.id
+                    VaultSession.shared.registerServerId(localId: folder.id, serverId: created.id)
+                } catch {
+                    VaultSession.shared.message = "Ordner konnte nicht angelegt werden: \(error.localizedDescription)"
+                }
             }
         }
     }
@@ -345,35 +392,66 @@ extension VaultService: VaultBackend {
     }
 
     nonisolated func toClipboard(text: String, sensitive: Bool) {
-        let options: [UIPasteboard.OptionsKey: Any] = sensitive
-            ? [.localOnly: true, .expirationDate: Date().addingTimeInterval(90)]
-            : [:]
+        let seconds = AppSettings.shared.clearClipboardSeconds
+        var options: [UIPasteboard.OptionsKey: Any] = [:]
+        if sensitive {
+            options[.localOnly] = true
+            if seconds > 0 { options[.expirationDate] = Date().addingTimeInterval(TimeInterval(seconds)) }
+        }
         UIPasteboard.general.setItems([[UTType.plainText.identifier: text]], options: options)
+    }
+
+    nonisolated func setBiometricUnlock(enabled: Bool) {
+        Task { @MainActor in
+            self.biometricsWanted = enabled
+            if enabled {
+                guard let key = try? await self.client?.crypto().getUserEncryptionKey() else { return }
+                try? SecureStore.set(Data(key.utf8), for: .userKey)
+            } else {
+                SecureStore.delete(.userKey)
+            }
+        }
+    }
+
+    nonisolated func biometricUnlockEnabled() -> Bool {
+        MainActor.assumeIsolated { biometricsWanted && canUseBiometrics }
+    }
+
+    nonisolated func logout() {
+        Task { @MainActor in self.signOut() }
+    }
+
+    /// Server id for a folder chosen in the UI (folders created offline get theirs on upload).
+    private func serverFolderId(_ id: String?) -> String? {
+        guard let id else { return nil }
+        if id.hasPrefix(Self.localPrefix) { return folderIds[id] ?? VaultSession.shared.serverIdFor(localId: id) }
+        return id
     }
 
     /// Encrypts the change with the SDK and uploads it; the next sync replaces the optimistic copy.
     private func write(item: VaultItem, isNew: Bool) async {
         guard let client else { return }
         do {
-            let creating = isNew || item.id.hasPrefix(Self.localPrefix)
+            let localId = item.id.hasPrefix(Self.localPrefix) ? item.id : nil
+            let serverId = localId.flatMap { VaultSession.shared.serverIdFor(localId: $0) } ?? (localId == nil ? item.id : nil)
             let view: CipherView
-            if creating {
-                guard item.type == .login else { return }
-                view = .newLogin(from: item)
+            if let serverId, let original = decrypted[serverId] {
+                view = original.applying(item, folderId: serverFolderId(item.folderId))
             } else {
-                guard let original = decrypted[item.id] else { return }
-                view = original.applying(item)
+                view = .new(from: item, folderId: serverFolderId(item.folderId))
             }
             let context = try await client.vault().ciphers().encrypt(cipherView: view)
             let body = CipherRequestModel(cipher: context.cipher)
-            if creating {
-                _ = try await api.createCipher(body)
+            if let serverId, decrypted[serverId] != nil {
+                _ = try await api.updateCipher(id: serverId, body)
             } else {
-                _ = try await api.updateCipher(id: item.id, body)
+                let created = try await api.createCipher(body)
+                if let localId { VaultSession.shared.registerServerId(localId: localId, serverId: created.id) }
             }
             try await sync()
         } catch {
-            errorMessage = "Speichern fehlgeschlagen: \(error.localizedDescription)"
+            VaultSession.shared.message = "Speichern fehlgeschlagen: \(error.localizedDescription)"
+            await syncQuietly()
         }
     }
 }

@@ -273,7 +273,7 @@ class AutofillPickerActivity : ComponentActivity() {
             )
         }
         val dataset = DatasetFactory(this).direct(plan.assignments(), s.ids, DatasetFactory.Label(cred.name, cred.username), null) { a ->
-            vault.value(cred.id, a.value, now / 1000, a.otpDigitIndex)
+            vault.fill(cred.id, a, now / 1000)
         } ?: return cancel()
         vault.recordUse(cred.id, now)
         // Like Proton Pass: after a password login, the 2FA code is ready in the clipboard.

@@ -17,6 +17,11 @@ pluginManagement {
 
 dependencyResolutionManagement {
     repositories {
+        // Official Bitwarden SDK for Android, built from bitwarden/sdk-internal by
+        // tools/build-android-sdk.sh (GitHub Packages needs a token, so we build it ourselves).
+        mavenLocal {
+            content { includeGroup("com.bitwarden") }
+        }
         google {
             mavenContent {
                 includeGroupAndSubgroups("androidx")

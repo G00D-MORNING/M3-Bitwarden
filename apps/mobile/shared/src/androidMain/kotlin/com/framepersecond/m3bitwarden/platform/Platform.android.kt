@@ -71,3 +71,24 @@ actual fun rememberClipboardWriter(): ClipboardWriter {
         }
     }
 }
+
+/** Set once by the Android Application before any UI or service runs. */
+object AndroidPlatform {
+    lateinit var context: android.content.Context
+}
+
+actual object PlatformPrefs {
+    private val prefs by lazy { AndroidPlatform.context.getSharedPreferences("m3b_settings", android.content.Context.MODE_PRIVATE) }
+
+    actual fun getString(key: String): String? = prefs.getString(key, null)
+
+    actual fun putString(key: String, value: String?) {
+        prefs.edit().apply { if (value == null) remove(key) else putString(key, value) }.apply()
+    }
+}
+
+actual fun openUrl(url: String) {
+    val intent = android.content.Intent(android.content.Intent.ACTION_VIEW, android.net.Uri.parse(url))
+        .addFlags(android.content.Intent.FLAG_ACTIVITY_NEW_TASK)
+    runCatching { AndroidPlatform.context.startActivity(intent) }
+}

@@ -15,6 +15,8 @@ data class ProviderRow(
     val id: String,
     val name: String,
     val username: String,
+    /** Website the login belongs to, with subdomain (e.g. "nas.example.com"), so look-alike entries can be told apart. */
+    val host: String,
     val hasTotp: Boolean,
     val matched: Boolean,
     val needsConfirmation: Boolean,
@@ -93,7 +95,11 @@ object CredentialProviderBridge {
                 val info = UrlInfo.parse(u.uri) ?: continue
                 val host = info.host ?: continue
                 out += ProviderIdentity(host, c.username, c.id)
+                // Only logins saved for the bare domain (or www.) cover the whole domain. A login for
+                // nas.example.com must not be suggested on mail.example.com: iOS matches identities by
+                // domain suffix, so announcing the registrable domain would mix all subdomains.
                 val reg = info.registrableDomain ?: continue
+                if (host != reg && host != "www.$reg") continue
                 out += ProviderIdentity(reg, c.username, c.id)
                 equivalentDomains.firstOrNull { reg in it }?.forEach { eq -> out += ProviderIdentity(eq, c.username, c.id) }
             }
@@ -116,5 +122,5 @@ object CredentialProviderBridge {
     }
 
     private fun Credential.row(matched: Boolean, confirm: Boolean) =
-        ProviderRow(id, name, username, hasTotp, matched, confirm)
+        ProviderRow(id, name, username, uris.firstNotNullOfOrNull { UrlInfo.parse(it.uri)?.host?.removePrefix("www.") }.orEmpty(), hasTotp, matched, confirm)
 }

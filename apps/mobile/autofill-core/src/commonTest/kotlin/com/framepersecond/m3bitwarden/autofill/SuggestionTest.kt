@@ -98,3 +98,31 @@ class SuggestionTest {
         assertIs<SaveDecision.UpdatePassword>(d)
     }
 }
+
+class KnownAppTest {
+    private fun login(id: String, vararg uris: String) =
+        com.framepersecond.m3bitwarden.autofill.match.Credential(id = id, name = id, username = "u", uris = uris.map { com.framepersecond.m3bitwarden.autofill.match.LoginUri(it) })
+
+    @kotlin.test.Test
+    fun knownAppIsSuggestedButNeverFilledSilently() {
+        val engine = com.framepersecond.m3bitwarden.autofill.match.MatchEngine()
+        val target = com.framepersecond.m3bitwarden.autofill.match.FillTarget(appId = "de.hafas.android.db", appLabel = "DB Navigator")
+        val result = engine.match(target, listOf(login("bahn", "https://www.bahn.de"), login("other", "https://example.com")))
+        kotlin.test.assertTrue(result.primary.isEmpty())
+        kotlin.test.assertEquals(listOf("bahn"), result.possible.map { it.credential.id })
+        kotlin.test.assertEquals(com.framepersecond.m3bitwarden.autofill.match.MatchReason.KnownApp, result.possible.first().reason)
+        val suggestions = com.framepersecond.m3bitwarden.autofill.suggest.Suggester().forTarget(target, result)
+        kotlin.test.assertEquals("androidapp://de.hafas.android.db", suggestions.first().uriToAdd)
+    }
+
+    @kotlin.test.Test
+    fun reverseDomainPackageNames() {
+        kotlin.test.assertEquals("dkb.de", com.framepersecond.m3bitwarden.autofill.match.KnownApps.reverseDomainGuess("de.dkb.portalapp"))
+        kotlin.test.assertEquals("paypal.com", com.framepersecond.m3bitwarden.autofill.match.KnownApps.reverseDomainGuess("com.paypal.android.p2pmobile"))
+        kotlin.test.assertEquals(null, com.framepersecond.m3bitwarden.autofill.match.KnownApps.reverseDomainGuess("com.google.android.apps.maps"))
+        val engine = com.framepersecond.m3bitwarden.autofill.match.MatchEngine()
+        val target = com.framepersecond.m3bitwarden.autofill.match.FillTarget(appId = "de.meinestadtwerke.app")
+        val result = engine.match(target, listOf(login("sw", "https://kundenportal.meinestadtwerke.de")))
+        kotlin.test.assertEquals(listOf("sw"), result.possible.map { it.credential.id })
+    }
+}

@@ -107,6 +107,10 @@ final class VaultwardenAPI {
         try await send(encodable: body, to: M3BConfig.apiURL.appendingPathComponent("ciphers/\(id)"), method: "PUT")
     }
 
+    func createFolder(name: String) async throws -> FolderModel {
+        try await send(encodable: ["name": name], to: M3BConfig.apiURL.appendingPathComponent("folders"), method: "POST")
+    }
+
     /// Moves the item to the trash (restorable in the web vault).
     func softDeleteCipher(id: String) async throws {
         _ = try await raw(request(M3BConfig.apiURL.appendingPathComponent("ciphers/\(id)/delete"), method: "PUT"), auth: true)

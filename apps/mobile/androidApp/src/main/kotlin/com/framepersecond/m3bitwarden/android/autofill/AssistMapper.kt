@@ -52,7 +52,7 @@ class AssistMapper {
             htmlAttributes = attrs,
             // Labels and buttons only: never the text of an input, which is what the user typed.
             text = if (isInput(n, tag, attrs)) null else n.text?.toString(),
-            hint = n.hint ?: n.autofillOptions?.joinToString(" "),
+            hint = n.hint,
             idEntry = n.idEntry,
             contentDescription = n.contentDescription?.toString(),
             isFocused = n.isFocused,
@@ -61,12 +61,15 @@ class AssistMapper {
             maxLength = attrs["maxlength"]?.toIntOrNull()
                 ?: if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) n.maxTextLength else -1,
             webDomain = n.webDomain,
+            options = if (n.autofillType == View.AUTOFILL_TYPE_LIST) n.autofillOptions?.map { it.toString() }.orEmpty() else emptyList(),
             webScheme = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) n.webScheme else null,
             children = (0 until n.childCount).map { mapNode(n.getChildAt(it)) },
         )
     }
 
     private fun kindOf(n: AssistStructure.ViewNode, tag: String?, attrs: Map<String, String>): NodeKind = when {
+        // <select> in browsers and native spinners: filled by option index.
+        n.autofillType == View.AUTOFILL_TYPE_LIST && n.autofillId != null -> NodeKind.Select
         isInput(n, tag, attrs) -> NodeKind.TextInput
         tag == "button" || (tag == "input" && attrs["type"] in setOf("submit", "button")) -> NodeKind.Button
         n.className?.endsWith("Button") == true -> NodeKind.Button

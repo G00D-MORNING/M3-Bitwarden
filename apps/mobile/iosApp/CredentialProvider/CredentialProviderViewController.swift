@@ -36,10 +36,12 @@ final class CredentialProviderViewController: ASCredentialProviderViewController
         guard let identity = credentialRequest.credentialIdentity as? ASPasswordCredentialIdentity, let id = identity.recordIdentifier else {
             return cancel()
         }
-        unlock { ok in
+        // Show the unlock screen right away (Face ID, or the master password if that fails).
+        host(ExtensionRoot(mode: .password, identifiers: [identity.serviceIdentifier.identifier], singleId: id, bridge: bridge, onDone: { _ in self.cancel() }) { ok in
             guard ok, let password = self.bridge.password(id: id) else { return self.cancel() }
+            self.bridge.recordUse(id: id, nowEpochMs: Self.nowMs)
             self.extensionContext.completeRequest(withSelectedCredential: ASPasswordCredential(user: identity.user, password: password))
-        }
+        })
     }
 
     // MARK: One-time codes (iOS 18+)
@@ -65,23 +67,23 @@ final class CredentialProviderViewController: ASCredentialProviderViewController
 
     // MARK: UI
 
-    private func present(mode: PickerView.Mode) {
-        unlock { ok in
-            guard ok else { return self.cancel() }
-            let rows = self.bridge.rows(identifiers: self.identifiers, nowEpochMs: Self.nowMs)
-            let view = PickerView(mode: mode, domain: self.identifiers.first, rows: rows, bridge: self.bridge) { result in
-                self.finish(result, mode: mode)
-            }
-            let host = UIHostingController(rootView: view)
-            self.addChild(host)
-            host.view.frame = self.view.bounds
-            host.view.autoresizingMask = [.flexibleWidth, .flexibleHeight]
-            self.view.addSubview(host.view)
-            host.didMove(toParent: self)
-        }
+    private func present(mode: ExtensionRoot.Mode) {
+        host(ExtensionRoot(mode: mode, identifiers: identifiers, singleId: nil, bridge: bridge, onDone: { result in
+            self.finish(result, mode: mode)
+        }) { _ in })
     }
 
-    private func finish(_ result: PickerView.Result?, mode: PickerView.Mode) {
+    private func host(_ view: ExtensionRoot) {
+        children.forEach { $0.view.removeFromSuperview(); $0.removeFromParent() }
+        let host = UIHostingController(rootView: view)
+        addChild(host)
+        host.view.frame = self.view.bounds
+        host.view.autoresizingMask = [.flexibleWidth, .flexibleHeight]
+        self.view.addSubview(host.view)
+        host.didMove(toParent: self)
+    }
+
+    private func finish(_ result: ExtensionRoot.Result?, mode: ExtensionRoot.Mode) {
         guard let result else { return cancel() }
         if let offer = result.acceptedLink { bridge.acceptLink(offer: offer); Task { await CredentialIdentitySync.run() } }
         bridge.recordUse(id: result.row.id, nowEpochMs: Self.nowMs)
@@ -101,16 +103,6 @@ final class CredentialProviderViewController: ASCredentialProviderViewController
             } else {
                 cancel()
             }
-        }
-    }
-
-    private func unlock(_ done: @escaping (Bool) -> Void) {
-        if bridge.isUnlocked { return done(true) }
-        Task { @MainActor in
-            // Face ID releases the vault key from the shared keychain; the SDK decrypts the cached
-            // vault and a short sync (max. 4 s) picks up items added elsewhere.
-            let ok = await VaultService.shared.unlockWithBiometrics(syncTimeout: 4)
-            done(ok)
         }
     }
 

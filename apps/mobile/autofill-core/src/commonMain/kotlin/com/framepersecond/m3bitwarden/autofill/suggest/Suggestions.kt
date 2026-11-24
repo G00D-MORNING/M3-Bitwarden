@@ -18,6 +18,9 @@ enum class LinkReason {
     /** The app is officially tied to a domain the item already has (Digital Asset Links). */
     VerifiedAppDomain,
 
+    /** A well-known app ("DB Navigator") and the item's website (bahn.de) belong together. */
+    KnownApp,
+
     /** App name and item name look alike. Lowest confidence, always asked. */
     NameMatch,
 }
@@ -85,6 +88,9 @@ class Suggester(
         result.primary.filter { it.reason == MatchReason.AppVerifiedDomain }.forEach { m ->
             linkFor(m.credential, target, LinkReason.VerifiedAppDomain, confidence = 85)?.let(out::add)
         }
+        result.possible.filter { it.reason == MatchReason.KnownApp }.take(2).forEach { m ->
+            linkFor(m.credential, target, LinkReason.KnownApp, confidence = m.strength)?.let(out::add)
+        }
         result.possible.filter { it.reason == MatchReason.NameHeuristic }.take(2).forEach { m ->
             linkFor(m.credential, target, LinkReason.NameMatch, confidence = m.strength)?.let(out::add)
         }
@@ -105,8 +111,10 @@ class Suggester(
             val engine = MatchEngine(appDomains = mapOf(app.appId to app.verifiedDomains))
             val result = engine.match(target, logins)
             val verified = result.primary.firstOrNull { it.reason == MatchReason.AppVerifiedDomain }
+            val known = result.possible.firstOrNull { it.reason == MatchReason.KnownApp }
             val suggestion = when {
                 verified != null -> linkFor(verified.credential, target, LinkReason.VerifiedAppDomain, 85)
+                known != null -> linkFor(known.credential, target, LinkReason.KnownApp, known.strength)
                 else -> result.possible.firstOrNull { it.reason == MatchReason.NameHeuristic && it.strength >= 55 }
                     ?.let { linkFor(it.credential, target, LinkReason.NameMatch, it.strength) }
             }

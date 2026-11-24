@@ -13,7 +13,14 @@ import com.framepersecond.m3bitwarden.autofill.text.TextNorm
  * nearby labels are weaker. Negative evidence (search boxes, coupons, chat fields,
  * multi-line text) subtracts. The result carries the signals for debugging.
  */
-class FieldClassifier {
+class FieldClassifier(
+    /** Learned fallback for fields the rules cannot place; null disables it. */
+    private val model: LearnedModel? = LearnedModel.shipped,
+    /** Minimum lead of the model's best class over the runner-up; null = the margin chosen in training. */
+    private val modelMargin: Int? = null,
+    /** Let a very confident model overrule a weak rule decision (label words only); null = as trained. */
+    private val modelOverrides: Boolean? = null,
+) {
 
     data class Result(val type: FieldType, val confidence: Int, val signals: List<String>)
 
@@ -31,6 +38,11 @@ class FieldClassifier {
 
         val htmlType = node.htmlAttributes["type"]
         if (htmlType != null && htmlType in IGNORED_HTML_TYPES) return Result(FieldType.Unknown, 0, listOf("html type=$htmlType"))
+        // Read-only and disabled fields show a value the page set itself (FRITZ!Box user list,
+        // Proxmox realm picker); filling them is pointless and can break the form.
+        if (node.htmlAttributes.containsKey("readonly") || node.htmlAttributes.containsKey("disabled")) {
+            return Result(FieldType.Unknown, 0, listOf("readonly"))
+        }
 
         // 1. Android autofill hints (set by app developers, very reliable).
         for (hint in node.autofillHints) {
@@ -38,10 +50,26 @@ class FieldClassifier {
             if (mapped != null) add(mapped, 100, "hint=$hint") else scoreKeywords(hint, 35, "hint-text", ::add)
         }
 
-        // 2. HTML autocomplete tokens (WHATWG spec), equally reliable on the web.
-        node.htmlAttributes["autocomplete"]?.split(' ')?.forEach { token ->
-            AUTOCOMPLETE[token.trim()]?.let { add(it, 100, "autocomplete=$token") }
+        // 2. HTML autocomplete (WHATWG): modifiers, then one field name. An attribute with
+        // unknown tokens is invalid as a whole and ignored, as browsers do.
+        when (val ac = parseAutocomplete(node.htmlAttributes["autocomplete"])) {
+            null -> Unit
+            in AUTOCOMPLETE_NOT_FILLED -> return Result(FieldType.Unknown, 0, listOf("autocomplete=$ac"))
+            // "new-password" on a text field is a widespread trick to keep Chrome from filling it.
+            "new-password", "current-password" -> if (htmlType == null || htmlType == "password") AUTOCOMPLETE[ac]?.let { add(it, 100, "autocomplete=$ac") }
+            else -> AUTOCOMPLETE[ac]?.let { add(it, 100, "autocomplete=$ac") }
         }
+
+        // 2b. Chrome's own field-type prediction (crowd-sourced and local heuristics), reported
+        // to autofill services in the attributes below. Strong, but autocomplete still wins.
+        for (attr in CHROME_PREDICTION_ATTRS) {
+            node.htmlAttributes[attr]?.split(',', ' ')?.forEach { token ->
+                CHROME_TYPES[token.trim().uppercase()]?.let { add(it, 80, "$attr=$token") }
+            }
+        }
+
+        // 2c. Option texts of a select: "Herr/Frau", country names, months, years.
+        if (node.isSelect) scoreOptions(node.options, ::add)
 
         // 3. HTML input type.
         when (htmlType) {
@@ -67,7 +95,10 @@ class FieldClassifier {
             node.htmlAttributes["data-testid"],
         )
         strong.forEach { scoreKeywords(it, 40, "id", ::add) }
-        medium.forEach { scoreKeywords(it, 30, "hint", ::add) }
+        medium.forEach { text ->
+            // "you@company.com" shows the expected format; its words ("company") are no hint.
+            if (EXAMPLE_EMAIL.matches(text.trim())) add(FieldType.Email, 50, "example-email") else scoreKeywords(text, 30, "hint", ::add)
+        }
         // The label right next to the input is often the only clue in native apps.
         contextText.forEachIndexed { i, label -> scoreKeywords(label, if (i == 0) 30 else 15, "label", ::add) }
 
@@ -77,13 +108,17 @@ class FieldClassifier {
         }
         if (node.maxLength in 4..8 && isNumeric(node)) add(FieldType.Otp, 15, "short numeric")
 
-        // 7. Negative evidence.
+        // 7. Negative evidence. A search box, coupon or IBAN field stays empty unless the page
+        // itself declares the field (autocomplete / autofill hints).
         val ownText = (strong + medium).joinToString(" ")
         val denied = matchesAny(ownText, Lexicon.globalDenied)
-        if (denied != null) {
-            scores.keys.toList().forEach { scores[it] = scores.getValue(it) - 80 }
-            signals += "denied:$denied"
+        val declared = signals.any { it.contains("+100:") }
+        if (denied != null && !declared) {
+            return Result(FieldType.Unknown, 0, signals + "denied:$denied")
         }
+        if (denied != null) signals += "denied-but-declared:$denied"
+
+        applySpecificity(scores, signals, htmlType, declared)
         if (isMultiLine(node.inputType)) {
             scores.keys.toList().forEach { scores[it] = scores.getValue(it) - 60 }
             signals += "multiline"
@@ -94,7 +129,22 @@ class FieldClassifier {
         val best = scores.entries
             .filter { it.value > 0 }
             .maxWithOrNull(compareBy<Map.Entry<FieldType, Int>> { it.value }.thenBy { -PRIORITY.indexOf(it.key) })
-            ?: return Result(FieldType.Unknown, 0, signals)
+        if (best == null || best.value < MIN_CONFIDENCE) {
+            // No rule fired (unknown wording, foreign language, obfuscated ids): ask the model.
+            return modelFallback(node, contextText, signals) ?: Result(FieldType.Unknown, best?.value ?: 0, signals)
+        }
+        // Weak rule decisions (only label or placeholder words, no ids, types or declarations)
+        // give way to a model that is far more certain.
+        val overrides = modelOverrides ?: (model?.overridesWeakRules == true)
+        if (overrides && best.value < WEAK_RULE && model != null && !isMultiLine(node.inputType)) {
+            val (type, margin) = model.predict(FieldFeatures.extract(node, contextText))
+            if (type != best.key && type != FieldType.Unknown && margin >= 2 * (modelMargin ?: model.margin)) {
+                return Result(type, MIN_CONFIDENCE + 10, signals + "model-over-weak-rule:$type/$margin")
+            }
+        }
+
+        // A field typed as e-mail that the page calls "username" takes an e-mail address.
+        if (best.key == FieldType.Username && htmlType == "email") return Result(FieldType.Email, best.value.coerceAtMost(100), signals + "type=email-wins")
         val confidence = best.value.coerceAtMost(100)
         return if (confidence >= MIN_CONFIDENCE) Result(best.key, confidence, signals) else Result(FieldType.Unknown, confidence, signals)
     }
@@ -105,9 +155,78 @@ class FieldClassifier {
         val words = TextNorm.words(raw).toSet()
         if (containsKeyword(squashed, words, Lexicon.password)) add(FieldType.Password, weight, "$source:password")
         for (entry in Lexicon.entries) {
-            val hit = entry.keywords.firstOrNull { matchesKeyword(squashed, words, it) } ?: continue
+            // The longest matching keyword is the most telling ("namevorname" over "name").
+            val hit = entry.keywords.filter { matchesKeyword(squashed, words, it) }.maxByOrNull { it.length } ?: continue
             if (entry.denied.any { matchesKeyword(squashed, words, it) }) continue
-            add(entry.type, weight, "$source:$hit")
+            // "code" alone (access code, voucher code, shop code) is weak evidence for a one-time code.
+            add(entry.type, if (hit in WEAK_KEYWORDS) weight / 2 else weight, "$source:$hit")
+        }
+    }
+
+    private fun modelFallback(node: AutofillNode, contextText: List<String>, signals: List<String>): Result? {
+        val m = model ?: return null
+        if (isMultiLine(node.inputType)) return null
+        val (type, margin) = m.predict(FieldFeatures.extract(node, contextText))
+        if (type == FieldType.Unknown || margin < (modelMargin ?: m.margin)) return null
+        return Result(type, MIN_CONFIDENCE + 10, signals + "model:$type/$margin")
+    }
+
+    /**
+     * Specific evidence beats generic evidence: "Hausnummer", "Adresszusatz" or "PLZ" next to an
+     * "address" id is that part, not the whole address; "Karteninhaber" is not just a name;
+     * "E-Mail oder Telefonnummer" asks for any identifier (username), unless typed as e-mail.
+     */
+    private fun applySpecificity(scores: MutableMap<FieldType, Int>, signals: MutableList<String>, htmlType: String?, declared: Boolean) {
+        if (declared) return
+        fun has(t: FieldType) = (scores[t] ?: 0) > 0
+        fun yieldTo(generic: FieldType, specific: List<FieldType>) {
+            if (has(generic) && specific.any(::has)) {
+                scores.remove(generic)
+                signals += "${generic.name}-yields"
+            }
+        }
+        yieldTo(FieldType.Address, listOf(FieldType.AddressLine2, FieldType.HouseNumber, FieldType.City, FieldType.PostalCode, FieldType.State, FieldType.Country, FieldType.Phone, FieldType.Email, FieldType.FullName, FieldType.Title))
+        // "Vollständiger Name (Vor- und Nachname)" names the parts but asks for the whole name.
+        val explicitFullName = signals.any { s -> s.startsWith("FullName+") && FULL_NAME_EXPLICIT.any { s.endsWith(":$it") } }
+        if (!explicitFullName) {
+            yieldTo(FieldType.FullName, listOf(FieldType.CardHolder, FieldType.FirstName, FieldType.LastName, FieldType.Username, FieldType.Organization, FieldType.Title))
+        } else {
+            scores.remove(FieldType.FirstName)
+            scores.remove(FieldType.LastName)
+        }
+        yieldTo(FieldType.Country, listOf(FieldType.Phone, FieldType.PhoneCountryCode))
+        yieldTo(FieldType.Phone, listOf(FieldType.PhoneCountryCode, FieldType.PhoneAreaCode))
+        yieldTo(FieldType.CardNumber, listOf(FieldType.CardBrand))
+        yieldTo(FieldType.Otp, listOf(FieldType.PostalCode, FieldType.CardCvv, FieldType.CardBrand, FieldType.PhoneAreaCode, FieldType.PhoneCountryCode))
+        // "E-Mail oder Telefonnummer / Benutzername": a login identifier, not an e-mail field.
+        // Generic words like "login" in "login-email-input" do not make it a multi-identifier field.
+        val usernameWords = signals.any { it.startsWith("Username+") && GENERIC_LOGIN_WORDS.none { w -> it.endsWith(":$w") } }
+        val exampleEmail = signals.any { it.endsWith(":example-email") || it.endsWith("example-email") }
+        if (htmlType != "email" && !exampleEmail && has(FieldType.Email) && (has(FieldType.Phone) || (has(FieldType.Username) && usernameWords))) {
+            val best = maxOf(scores[FieldType.Email] ?: 0, scores[FieldType.Username] ?: 0)
+            scores[FieldType.Username] = best + 10
+            scores.remove(FieldType.Email)
+            scores.remove(FieldType.Phone)
+            signals += "multi-identifier"
+        }
+    }
+
+    private fun scoreOptions(options: List<String>, add: (FieldType, Int, String) -> Unit) {
+        if (options.isEmpty()) return
+        val squashed = options.map { TextNorm.squash(it) }.filter { it.isNotEmpty() }
+        fun share(set: Set<String>) = squashed.count { it in set }
+        when {
+            squashed.count { o -> CARD_BRANDS.any { o.contains(it) } } >= 2 -> add(FieldType.CardBrand, 70, "options:card-brands")
+            share(Lexicon.salutationOptions) >= 2 -> add(FieldType.Title, 70, "options:salutation")
+            share(Lexicon.countryOptions) >= 2 -> add(FieldType.Country, 70, "options:countries")
+            share(Lexicon.stateOptions) >= 2 -> add(FieldType.State, 70, "options:states")
+            share(Lexicon.monthOptions) >= 3 -> add(FieldType.CardExpiryMonth, 40, "options:months")
+        }
+        val numbers = squashed.mapNotNull { it.toIntOrNull() }
+        when {
+            numbers.size >= 10 && numbers.all { it in 1..12 } -> add(FieldType.CardExpiryMonth, 45, "options:1-12")
+            numbers.size >= 5 && numbers.all { it in 2000..2100 } -> add(FieldType.CardExpiryYear, 45, "options:years")
+            numbers.size >= 5 && numbers.all { it in 0..99 } && numbers.zipWithNext().all { (a, b) -> b == a + 1 } -> add(FieldType.CardExpiryYear, 25, "options:yy")
         }
     }
 
@@ -168,10 +287,12 @@ class FieldClassifier {
         /** Tie-breaker when two types score the same: earlier wins. */
         private val PRIORITY = listOf(
             FieldType.NewPassword, FieldType.ConfirmPassword, FieldType.Password, FieldType.OtpDigit, FieldType.Otp,
-            FieldType.Email, FieldType.Username, FieldType.CardNumber, FieldType.CardCvv, FieldType.CardExpiry,
+            FieldType.Email, FieldType.Username, FieldType.CardNumber, FieldType.CardCvv, FieldType.CardBrand, FieldType.CardExpiry,
             FieldType.CardExpiryMonth, FieldType.CardExpiryYear, FieldType.CardHolder, FieldType.FirstName,
-            FieldType.LastName, FieldType.FullName, FieldType.Phone, FieldType.PostalCode, FieldType.City,
-            FieldType.Country, FieldType.Address, FieldType.Organization,
+            FieldType.LastName, FieldType.FullName, FieldType.PhoneCountryCode, FieldType.PhoneAreaCode, FieldType.PhoneLocal,
+            FieldType.Phone, FieldType.PostalCode, FieldType.City,
+            FieldType.HouseNumber, FieldType.AddressLine2, FieldType.Street, FieldType.Country, FieldType.State,
+            FieldType.Address, FieldType.Organization, FieldType.Title,
         )
 
         private val IGNORED_HTML_TYPES = setOf("hidden", "checkbox", "radio", "submit", "button", "reset", "file", "image", "range", "color", "search", "date", "datetime-local", "time")
@@ -201,6 +322,15 @@ class FieldClassifier {
             "postalcode" to FieldType.PostalCode,
             "addresslocality" to FieldType.City,
             "addresscountry" to FieldType.Country,
+            "phonenational" to FieldType.Phone,
+            "postaladdressstreetaddress" to FieldType.Address,
+            "postaladdressextendedaddress" to FieldType.AddressLine2,
+            "postaladdressaptnumber" to FieldType.AddressLine2,
+            "postaladdresslocality" to FieldType.City,
+            "postaladdressregion" to FieldType.State,
+            "postaladdresscountry" to FieldType.Country,
+            "postaladdresspostalcode" to FieldType.PostalCode,
+            "personnameprefix" to FieldType.Title,
         )
 
         private val AUTOCOMPLETE: Map<String, FieldType> = mapOf(
@@ -222,16 +352,121 @@ class FieldClassifier {
             "tel-national" to FieldType.Phone,
             "street-address" to FieldType.Address,
             "address-line1" to FieldType.Address,
+            "address-line2" to FieldType.AddressLine2,
+            "address-line3" to FieldType.AddressLine2,
             "postal-code" to FieldType.PostalCode,
             "address-level2" to FieldType.City,
+            "address-level1" to FieldType.State,
             "country" to FieldType.Country,
             "country-name" to FieldType.Country,
             "organization" to FieldType.Organization,
+            "honorific-prefix" to FieldType.Title,
+            "tel-local" to FieldType.PhoneLocal,
+            "tel-local-prefix" to FieldType.PhoneLocal,
+            "tel-local-suffix" to FieldType.PhoneLocal,
+            "tel-country-code" to FieldType.PhoneCountryCode,
+            "tel-area-code" to FieldType.PhoneAreaCode,
+            "cc-type" to FieldType.CardBrand,
+            "cc-given-name" to FieldType.CardHolder,
+            "cc-family-name" to FieldType.CardHolder,
+            // Common misspellings seen in the wild (Stripe Checkout uses "ccname").
+            "ccname" to FieldType.CardHolder,
+        )
+
+        /** Attributes in which Chrome hands its own type prediction to autofill services. */
+        private val CHROME_PREDICTION_ATTRS = listOf("crowdsourcing-autofill-hints", "computed-autofill-hints", "ua-autofill-hints")
+
+        /** Chrome `FieldType` names → ours. */
+        private val CHROME_TYPES: Map<String, FieldType> = mapOf(
+            "USERNAME" to FieldType.Username,
+            "USERNAME_AND_EMAIL_ADDRESS" to FieldType.Username,
+            "EMAIL_ADDRESS" to FieldType.Email,
+            "PASSWORD" to FieldType.Password,
+            "ACCOUNT_CREATION_PASSWORD" to FieldType.NewPassword,
+            "NEW_PASSWORD" to FieldType.NewPassword,
+            "CONFIRMATION_PASSWORD" to FieldType.ConfirmPassword,
+            "ONE_TIME_CODE" to FieldType.Otp,
+            "NAME_FULL" to FieldType.FullName,
+            "NAME_FIRST" to FieldType.FirstName,
+            "NAME_LAST" to FieldType.LastName,
+            "NAME_HONORIFIC_PREFIX" to FieldType.Title,
+            "PHONE_HOME_WHOLE_NUMBER" to FieldType.Phone,
+            "PHONE_HOME_CITY_AND_NUMBER" to FieldType.Phone,
+            "PHONE_HOME_NUMBER" to FieldType.Phone,
+            "ADDRESS_HOME_LINE1" to FieldType.Address,
+            "ADDRESS_HOME_STREET_ADDRESS" to FieldType.Address,
+            "ADDRESS_HOME_LINE2" to FieldType.AddressLine2,
+            "ADDRESS_HOME_APT_NUM" to FieldType.AddressLine2,
+            "ADDRESS_HOME_STREET_NAME" to FieldType.Street,
+            "ADDRESS_HOME_HOUSE_NUMBER" to FieldType.HouseNumber,
+            "ADDRESS_HOME_CITY" to FieldType.City,
+            "ADDRESS_HOME_STATE" to FieldType.State,
+            "ADDRESS_HOME_ZIP" to FieldType.PostalCode,
+            "ADDRESS_HOME_COUNTRY" to FieldType.Country,
+            "COMPANY_NAME" to FieldType.Organization,
+            "CREDIT_CARD_NAME_FULL" to FieldType.CardHolder,
+            "CREDIT_CARD_NUMBER" to FieldType.CardNumber,
+            "CREDIT_CARD_EXP_MONTH" to FieldType.CardExpiryMonth,
+            "CREDIT_CARD_EXP_2_DIGIT_YEAR" to FieldType.CardExpiryYear,
+            "CREDIT_CARD_EXP_4_DIGIT_YEAR" to FieldType.CardExpiryYear,
+            "CREDIT_CARD_EXP_DATE_2_DIGIT_YEAR" to FieldType.CardExpiry,
+            "CREDIT_CARD_EXP_DATE_4_DIGIT_YEAR" to FieldType.CardExpiry,
+            "CREDIT_CARD_VERIFICATION_CODE" to FieldType.CardCvv,
+            "CREDIT_CARD_TYPE" to FieldType.CardBrand,
+            "PHONE_HOME_COUNTRY_CODE" to FieldType.PhoneCountryCode,
+            "PHONE_HOME_CITY_CODE" to FieldType.PhoneAreaCode,
+            "PHONE_HOME_CITY_CODE_WITH_TRUNK_PREFIX" to FieldType.PhoneAreaCode,
+            "PHONE_HOME_NUMBER_PREFIX" to FieldType.PhoneLocal,
+            "PHONE_HOME_NUMBER_SUFFIX" to FieldType.PhoneLocal,
         )
 
         /** Short keywords (≤ 4 chars) must be a whole word; longer ones may be a substring. */
-        internal fun matchesKeyword(squashed: String, words: Set<String>, keyword: String): Boolean =
-            if (keyword.length <= 4) keyword in words || squashed == keyword else squashed.contains(keyword)
+        internal fun matchesKeyword(squashed: String, words: Set<String>, keyword: String): Boolean = when {
+            keyword.length > 4 -> squashed.contains(keyword)
+            keyword in words || squashed == keyword -> true
+            // A few short keywords are safe as word endings: "billingcity", "shippingzip", "cardcvc".
+            keyword in SUFFIX_KEYWORDS -> words.any { it.endsWith(keyword) }
+            else -> false
+        }
+
+        private val FULL_NAME_EXPLICIT = setOf(
+            "fullname", "vollstaendigername", "nomcomplet", "nombrecompleto", "nomecompleto", "yourname", "ihrname",
+            "vorundnachname", "namevorname", "nachnamevorname", "vornamename", "vornameundname", "vornameundnachname", "firstandlastname",
+        )
+
+        /** Below this score a rule decision rests on label words alone. */
+        private const val WEAK_RULE = 45
+
+        private val WEAK_KEYWORDS = setOf("code", "token")
+
+        private val CARD_BRANDS = listOf("visa", "mastercard", "americanexpress", "amex", "discover", "maestro", "dinersclub", "jcb")
+
+        /** Valid field names we deliberately leave empty (birthday, extension, …). */
+        private val AUTOCOMPLETE_NOT_FILLED = setOf(
+            "bday", "bday-day", "bday-month", "bday-year", "sex", "url", "photo", "impp", "nickname", "language",
+            "additional-name", "honorific-suffix", "organization-title", "tel-extension", "cc-additional-name",
+            "transaction-currency", "transaction-amount", "address-level3", "address-level4",
+        )
+
+        private val AUTOCOMPLETE_MODIFIERS = setOf("shipping", "billing", "home", "work", "mobile", "fax", "pager", "webauthn")
+
+        /** The field name of a valid autocomplete attribute, or null if absent or invalid. */
+        internal fun parseAutocomplete(raw: String?): String? {
+            val tokens = raw?.trim()?.lowercase()?.split(Regex("\\s+"))?.filter { it.isNotEmpty() }?.filter { it != "webauthn" } ?: return null
+            if (tokens.isEmpty()) return null
+            val name = tokens.last()
+            // "off" only asks browsers not to remember the value; password managers fill anyway.
+            if (name == "on" || name == "off") return null
+            val known = name in AUTOCOMPLETE || name in AUTOCOMPLETE_NOT_FILLED
+            val modifiersOk = tokens.dropLast(1).all { it.startsWith("section-") || it in AUTOCOMPLETE_MODIFIERS }
+            return if (known && modifiersOk) name else null
+        }
+
+        private val GENERIC_LOGIN_WORDS = setOf("login", "signin", "account", "identifier", "anmeldung", "user")
+
+        private val EXAMPLE_EMAIL = Regex("[^\\s@]+@[^\\s@]+\\.[a-z]{2,}")
+
+        private val SUFFIX_KEYWORDS = setOf("city", "zip", "plz", "cvc", "cvv", "csc")
 
         internal fun containsKeyword(squashed: String, words: Set<String>, keywords: Set<String>): Boolean =
             keywords.any { matchesKeyword(squashed, words, it) }

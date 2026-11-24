@@ -11,6 +11,7 @@ import android.service.autofill.Dataset
 import android.service.autofill.InlinePresentation
 import android.view.autofill.AutofillId
 import android.view.autofill.AutofillValue
+import com.framepersecond.m3bitwarden.autofill.format.FillValue
 import android.widget.RemoteViews
 import android.widget.inline.InlinePresentationSpec
 import androidx.autofill.inline.UiVersions
@@ -30,14 +31,18 @@ class DatasetFactory(private val context: Context) {
         ids: Map<String, AutofillId>,
         label: Label,
         inlineSpec: InlinePresentationSpec?,
-        value: (FieldAssignment) -> String?,
+        value: (FieldAssignment) -> FillValue?,
     ): Dataset? {
         val b = Dataset.Builder(remoteViews(label))
         var any = false
         for (a in assignments) {
             val id = ids[a.fieldId] ?: continue
-            val v = value(a) ?: continue
-            b.setValue(id, AutofillValue.forText(v), remoteViews(label))
+            val v = when (val fill = value(a)) {
+                is FillValue.Text -> AutofillValue.forText(fill.text)
+                is FillValue.ListIndex -> AutofillValue.forList(fill.index)
+                null -> continue
+            }
+            b.setValue(id, v, remoteViews(label))
             any = true
         }
         if (!any) return null

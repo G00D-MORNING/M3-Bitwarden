@@ -1,0 +1,205 @@
+form	source	kind	type	name	id	autocomplete	placeholder	aria	label	maxlength	options	expected	formidx	formbuttons
+github.com#2	crawl/github.com	input	text	login	login_field				Username or email address			Username	0	Sign in
+github.com#2	crawl/github.com	input	password	password	password				Password			Password	0	Sign in
+www.amazon.de#0	crawl/www.amazon.de	input	text	email	ap_email_login			Mobiltelefonnummer oder E-Mail-Adresse eingeben				Skip	0	
+www.amazon.de#1	crawl/www.amazon.de	input	text	email	ap_email_login			Mobiltelefonnummer oder E-Mail-Adresse eingeben				Skip	0	
+gitlab.com#5	crawl/gitlab.com	input	text	new_user[first_name]	new_user_first_name				First name			Skip	0	Continue
+gitlab.com#5	crawl/gitlab.com	input	text	new_user[last_name]	new_user_last_name				Last name			Skip	0	Continue
+gitlab.com#5	crawl/gitlab.com	input	text	new_user[username]	new_user_username				Username			Skip	0	Continue
+gitlab.com#5	crawl/gitlab.com	input	email	new_user[email]	new_user_email				Company email			Skip	0	Continue
+gitlab.com#5	crawl/gitlab.com	input	password	new_user[password]	new_user_password				Password			NewPassword	0	Continue
+accounts.google.com#9	crawl/accounts.google.com	input	text	identifier	identifierId			E-Mail oder Telefonnummer				Username	-1	
+login.live.com#7	crawl/login.live.com	input	email		usernameEntry				E-Mail-Adresse oder Telefonnummer			Email	1	Haben Sie Ihren Benutzernamen vergessen? | Weiter
+id.atlassian.com#6	crawl/id.atlassian.com	input	email	username	username-_r0_		Enter your email		Email*			Email	0	Continue
+signup.live.com#8	crawl/signup.live.com	input	email	email	floatingLabelInput4			E-Mail-Adresse	E-Mail-Adresse			Skip	1	Weiter
+accounts.spotify.com#16	crawl/accounts.spotify.com	input	text		username				E-Mail			Username	0	Weiter
+www.netflix.com#15	crawl/www.netflix.com	input	text	userLoginId	_R_lajal9laklallaqlamlemim_				E-Mail-Adresse oder Handynummer			Email	0	Weiter | Hilfe
+www.netflix.com#15	crawl/www.netflix.com	input	password	password	_R_l6lal9laklallaqlamlemim_				Passwort			Skip	0	Weiter | Hilfe
+www.netflix.com#15	crawl/www.netflix.com	select		LanguageSelect	_R_jlaqim_				Sprache auswählen		Deutsch|English	Skip	-1	
+login.kleinanzeigen.de#14	crawl/login.kleinanzeigen.de	input	email	username	username				E-mail *			Email	0	Weiter
+www.spotify.com#17	crawl/www.spotify.com	input	email	username	username		name@domain.com		E-Mail-Adresse			Email	0	Weiter
+www.instagram.com#21	crawl/www.instagram.com	input	text	email	_r_2_				Handynummer, Benutzername oder E-Mail-Adresse			Username	0	
+www.instagram.com#21	crawl/www.instagram.com	input	password	pass	_r_5_				Passwort			Skip	0	
+www.linkedin.com#23	crawl/www.linkedin.com	input	email	email-address	email-address		E-Mail		E-Mail			Skip	0	Anzeigen | Zustimmen & anmelden
+www.linkedin.com#23	crawl/www.linkedin.com	input	password	password	password				Passwort			NewPassword	0	Anzeigen | Zustimmen & anmelden
+www.linkedin.com#22	crawl/www.linkedin.com	input	email		_R_e3pptiejj35656j6_				E-Mail-Adresse/Telefon			Email	-1	
+www.linkedin.com#22	crawl/www.linkedin.com	input	password		_R_1lpptiejj35656j6_				Passwort			Password	-1	
+www.facebook.com#25	crawl/www.facebook.com	input	text	email	_r_2_				E-Mail-Adresse oder Handynummer			Username	0	
+www.facebook.com#25	crawl/www.facebook.com	input	password	pass	_r_5_				Passwort			Skip	0	
+x.com#24	crawl/x.com	input	text	username_or_email	jf-input-username_or_email				E-Mail oder Benutzername			Username	0	Mit Telefon fortfahren | Mit Apple fortfahren
+www.dropbox.com#27	crawl/www.dropbox.com	input	email	susi_email	susi_email4236296084459762		name@company.com		Email			Email	0	Continue
+www.dropbox.com#26	crawl/www.dropbox.com	input	email	susi_email	susi_email15273407725479582		name@company.com		Email			Email	0	Continue
+wordpress.com#29	crawl/wordpress.com	input	text	usernameOrEmail	usernameOrEmail				WordPress.com email address or username Email address or username			Username	0	Continue with Google | Continue with Apple | Continue with GitHub | Continue
+wordpress.com#29	crawl/wordpress.com	input	password	password	password				Password			Password	0	Continue with Google | Continue with Apple | Continue with GitHub | Continue
+login.wordpress.org#30	crawl/login.wordpress.org	input	text	user_login	user_login				Benutzername	60		Skip	0	Konto erstellen
+login.wordpress.org#30	crawl/login.wordpress.org	input	email	user_email	user_email				E-Mail-Adresse	100		Skip	0	Konto erstellen
+login.wordpress.org#30	crawl/login.wordpress.org	select		locale	language-switcher-locales				Sprache auswählen:		(فارسی (افغانستان|Afaan Oromoo|Afrikaans|Afsoomaali|Aragonés|Arpitan|Asturianu|Asụsụ Igbo|Azərbaycan Türkcəsi|Azərbaycan dili|Bahasa Indonesia|Bahasa Melayu|Basa Jawa|Basa Sunda|Bosanski|Brezhoneg|Català|Català (Balear)|Català (Valencià)|Cebuano|ChiShona|Ch’ti|Corsu|Crnogorski jezik|Cymraeg|Dansk|Deutsch|Deutsch (Schweiz)|Deutsch (Schweiz, Du)|Deutsch (Sie)|Deutsch (Österreich)|Dolnoserbšćina|Eesti|English|English (Australia)|English (Canada)|English (New Zealand)|English (Pirate)|English (South Africa)|English (UK)	Skip	1	
+login.wordpress.org#31	crawl/login.wordpress.org	input	text	log	user_login				Benutzername oder E-Mail-Adresse			Skip	0	Anmelden
+login.wordpress.org#31	crawl/login.wordpress.org	input	password	pwd	user_pass				Passwort			Skip	0	Anmelden
+login.wordpress.org#31	crawl/login.wordpress.org	select		locale	language-switcher-locales				Sprache auswählen:		(فارسی (افغانستان|Afaan Oromoo|Afrikaans|Afsoomaali|Aragonés|Arpitan|Asturianu|Asụsụ Igbo|Azərbaycan Türkcəsi|Azərbaycan dili|Bahasa Indonesia|Bahasa Melayu|Basa Jawa|Basa Sunda|Bosanski|Brezhoneg|Català|Català (Balear)|Català (Valencià)|Cebuano|ChiShona|Ch’ti|Corsu|Crnogorski jezik|Cymraeg|Dansk|Deutsch|Deutsch (Schweiz)|Deutsch (Schweiz, Du)|Deutsch (Sie)|Deutsch (Österreich)|Dolnoserbšćina|Eesti|English|English (Australia)|English (Canada)|English (New Zealand)|English (Pirate)|English (South Africa)|English (UK)	Skip	1	
+www.otto.de#33	crawl/www.otto.de	input	text				Wonach suchst du?		Verwende die Pfeiltasten, um Suchvorschläge oder deine Suchhistorie auszuwählen.	150		Skip	0	
+www.otto.de#34	crawl/www.otto.de	input	text				Wonach suchst du?		Verwende die Pfeiltasten, um Suchvorschläge oder deine Suchhistorie auszuwählen.	150		Skip	0	
+accounts.zalando.com#32	crawl/accounts.zalando.com	input	email	username	username			E-Mail-Adresse	E-Mail-Adresse			Email	0	Weiter
+accounts.zalando.com#32	crawl/accounts.zalando.com	input	password	password	password			Passwort	Passwort			Password	1	Bearbeiten | Einloggen | Code per E-Mail erhalten
+accounts.zalando.com#32	crawl/accounts.zalando.com	input	password	secret	register-password			Passwort. [object Object]	Passwort			NewPassword	3	Bearbeiten | Registrieren
+accounts.zalando.com#32	crawl/accounts.zalando.com	input	text	first_name	first_name			Vorname	Vorname			FirstName	3	Bearbeiten | Registrieren
+accounts.zalando.com#32	crawl/accounts.zalando.com	input	text	last_name	last_name			Nachname	Nachname			LastName	3	Bearbeiten | Registrieren
+www.mediamarkt.de#35	crawl/www.mediamarkt.de	input	text	userName__input	userName				E-Mail-Adresse	100		Username	0	Einloggen | Weiter mit Google | Weiter mit Apple
+www.mediamarkt.de#35	crawl/www.mediamarkt.de	input	password	password__input	password				Passwort	128		Password	0	Einloggen | Weiter mit Google | Weiter mit Apple
+account.rewe.de#38	crawl/account.rewe.de	input	email	username	username				E-Mail-Adresse			Email	1	Anmelden
+account.rewe.de#38	crawl/account.rewe.de	input	password	password	password				Passwort			Skip	1	Anmelden
+accounts.lidl.com#37	crawl/accounts.lidl.com	input	email	input-email	input-email			E-Mail	E-Mail			Email	0	AKZEPTIEREN | ABLEHNEN | Weiter mit Google | Weiter mit Apple
+de.accounts.ikea.com#40	crawl/de.accounts.ikea.com	input	email		passwordless-primary-login-form-username				E-Mail-Adresse			Email	0	Weiter | Privatkundenprofil erstellen | Unternehmensprofil erstellen
+signin.dm.de#39	crawl/signin.dm.de	input	email	userName	emailAddress-input				Deine E-Mail-Adresse			Email	0	Was bedeutet das? | Anmelden
+signin.dm.de#39	crawl/signin.dm.de	input	password	password	password-input				Dein Passwort			Password	0	Was bedeutet das? | Anmelden
+de.accounts.ikea.com#41	crawl/de.accounts.ikea.com	input	text	firstName	family-signup-form-firstName				Vorname	49		FirstName	0	Weiter
+de.accounts.ikea.com#41	crawl/de.accounts.ikea.com	input	text	lastName	family-signup-form-lastName				Nachname	50		LastName	0	Weiter
+de.accounts.ikea.com#41	crawl/de.accounts.ikea.com	input	text	birthDate	family-signup-form-birthDate				Geburtsdatum	10		Unknown	0	Weiter
+de.accounts.ikea.com#41	crawl/de.accounts.ikea.com	select		genderCode	family-signup-form-genderCode				Geschlecht (Optional)		|Männlich|Weiblich|Divers	Unknown	0	Weiter
+de.accounts.ikea.com#41	crawl/de.accounts.ikea.com	select			family-signup-form-noOfChildren				Wieviele Kinder unter 18 hast du?		0|1|2|3|4|5|6	Skip	0	Weiter
+de.accounts.ikea.com#41	crawl/de.accounts.ikea.com	select			family-signup-form-addressCountryCode				Land		Belgien|Dänemark|Deutschland|Frankreich|Luxemburg|Niederlande|Österreich|Polen|Schweiz|Tschechische Republik	Country	0	Weiter
+de.accounts.ikea.com#41	crawl/de.accounts.ikea.com	input	text	address	family-signup-form-address				Adresse suchen	100		Address	0	Weiter
+de.accounts.ikea.com#41	crawl/de.accounts.ikea.com	select		preferredStore	family-signup-form-preferredStore				Dein IKEA Einrichtungshaus		|Augsburg|Berlin-Lichtenberg|Berlin-Spandau|Berlin-Tempelhof|Berlin-Waltersdorf|Bielefeld|Braunschweig|Bremerhaven|Brinkum|Chemnitz|Dortmund|Dresden|Duisburg|Düsseldorf|Erfurt|Essen|Frankfurt|Freiburg|Halle/Leipzig|Hamburg-Altona|Hamburg-Moorfleet|Hamburg-Schnelsen|Hanau|Hannover EXPO-Park|Hannover-Großburgwedel|Ingolstadt|Kaarst|Kaiserslautern|Kamen|Karlsruhe|Kassel|Kiel|Koblenz|Köln-Am Butzweilerhof|Köln-Godorf|Lübeck|Ludwigsburg|Magdeburg|Mannheim	Skip	0	Weiter
+de.accounts.ikea.com#41	crawl/de.accounts.ikea.com	select			family-signup-form-phoneNumber-content-phone-select			Ländercode			DE|AT (+43)|CH (+41)|FR (+33)|BE (+32)|DK (+45)|LU (+352)|NL (+31)|PL (+48)|CZ (+420)|AD (+376)|AL (+355)|AO (+244)|AU (+61)|BA (+387)|BG (+359)|BH (+973)|BR (+55)|CA (+1)|CV (+238)|EE (+372)|ES (+34)|FI (+358)|FO (+298)|GB (+44)|GF (+594)|GI (+350)|GL (+299)|GR (+30)|GW (+245)|HR (+385)|HU (+36)|IE (+353)|IN (+91)|IT (+39)|JO (+962)|JP (+81)|KR (+82)|KW (+965)|KZ (+7)	Skip	0	Weiter
+de.accounts.ikea.com#41	crawl/de.accounts.ikea.com	input	tel	phoneNumber	family-signup-form-phoneNumber			Telefonnummer	+49	20		Phone	0	Weiter
+de.accounts.ikea.com#41	crawl/de.accounts.ikea.com	input	email	email	family-signup-form-email				E-Mail	100		Email	0	Weiter
+www.tchibo.de#42	crawl/www.tchibo.de	input	email	email-input	email-input				E-Mail-Adresse*	256		Email	0	Anmelden | Kundenkonto erstellen
+www.tchibo.de#42	crawl/www.tchibo.de	input	password	password-input	password-input				Passwort*	64		Password	0	Anmelden | Kundenkonto erstellen
+www.tchibo.de#42	crawl/www.tchibo.de	input	email	newsletterEmail	newsletter-email				E-Mail-Adresse*	256		Email	1	Zum Newsletter anmelden
+www.thalia.de#43	crawl/www.thalia.de	input	search	sq	suche-global-popover-searchbox-input		Titel, Autor, Stichwort, ISBN		Nach Titel, Autor, Stichwort oder ISBN suchen			Skip	0	Suche abschicken
+www.thalia.de#43	crawl/www.thalia.de	input	email	email	email		E-Mail-Adresse eingeben					Email	4	
+account.zara.com#47	crawl/account.zara.com	input	email	username	react-aria2153274505-:r1:			E-Mail eingeben	E-MAIL-ADRESSE			Email	0	WEITER
+www.aboutyou.de#45	crawl/www.aboutyou.de	input	text				Suche nach Artikeln, Marken und mehr...		Drops Bekleidung Schuhe Sport Accessoires Streetwear Premium Top 100 SALE Marken Inspiration			Skip	-1	
+www.conrad.de#48	crawl/www.conrad.de	input	search		header-search		Suche nach Produkt		Um nach dem Produkt zu suchen, geben Sie ein Schlagwort, eine Artikelnummer, eine EAN oder eine Hst.-Teile-Nr. ein	1500		Skip	0	Suchen
+www.reichelt.de#49	crawl/www.reichelt.de	select		GROUPINDEX	groupselector			Suchbegriff oder Artikelnummer			Alle|Bauelemente|Raspberry Pi Arduino|Stromversorgung|Messtechnik|Werkstatt und Löttechnik|Haustechnik Sicherheit|Netzwerktechnik|PC-Technik|Sat & TV|Kommunikation & Büro	Skip	1	Suchen
+www.reichelt.de#49	crawl/www.reichelt.de	input	text	search	quicksearch		Suchbegriff oder Artikelnummer					Skip	1	Suchen
+www.bahn.de#53	crawl/www.bahn.de	input	text	quickFinderBasic-von	59d24094-78a1-4038-a595-af8d3b2b2f65-input				Start			Skip	3	Karte anzeigen | Start- und Zielbahnhof tauschen | Suchen | Heute, ab 14:33 Hinfahrt ändern
+www.bahn.de#53	crawl/www.bahn.de	input	text	quickFinderBasic-nach	f9738ecb-ae46-4ee3-b0c6-d726b43b8e8a-input				Ziel			Skip	3	Karte anzeigen | Start- und Zielbahnhof tauschen | Suchen | Heute, ab 14:33 Hinfahrt ändern
+www.notebooksbilliger.de#51	crawl/www.notebooksbilliger.de	input	search		search-input		Suchbegriff eingeben...	Suchanfrage				Skip	-1	
+www.notebooksbilliger.de#51	crawl/www.notebooksbilliger.de	input	email	email	email				E-Mail			Email	0	Anmelden
+www.notebooksbilliger.de#51	crawl/www.notebooksbilliger.de	input	password	password	password				Passwort			Password	0	Anmelden
+www.notebooksbilliger.de#51	crawl/www.notebooksbilliger.de	input	email	email	footer-newsletter-email-input		E-Mail-Adresse eingeben	E-Mail-Adresse				Skip	1	Anmelden
+www.cyberport.de#52	crawl/www.cyberport.de	input	text	search-form-input			Wonach suchst du?					Skip	-1	
+www.lufthansa.com#56	crawl/www.lufthansa.com	input	text	searchbar	dcep-dcep-SearchBar9-searchbar		Suchbegriff eingeben		Suchbegriff eingeben			Skip	0	
+www.check24.de#59	crawl/www.check24.de	input	text	q	c24-search-header			Suche	Suchen oder fragen			Skip	0	
+www.booking.com#57	crawl/www.booking.com	input	search	ss	ss		Wohin reisen Sie?	Bitte tragen Sie Ihr Reiseziel ein	Reiseziel, Unterkunftsname oder Adresse:			Skip	0	Suche
+www.airbnb.de#58	crawl/www.airbnb.de	input	text		phone-or-email				Telefonnummer oder E-Mail-Adresse			Phone	0	Weiter
+www.verivox.de#60	crawl/www.verivox.de	input	search	q			Was möchten Sie vergleichen?	Suchfeld	{ "@context": "http://www.schema.org", "@id": "Organization", "@type": "Organization", "name": "Verivox GmbH", "url": "h			Skip	0	
+www.verivox.de#60	crawl/www.verivox.de	input	tel	plz	0c24fe75-plz		z.B. 12345		Ihre Postleitzahl	5		Skip	1	Jetzt vergleichen
+www.verivox.de#60	crawl/www.verivox.de	input	tel	usage	0c24fe75-usage		z.B. 2500		kWh / Jahr	7		Skip	1	Jetzt vergleichen
+www.verivox.de#60	crawl/www.verivox.de	input	email	Email Address	footer-newsletter-email		Ihre E-Mail Adresse		E-Mail Adresse			Skip	7	Anmelden
+www.dpd.com#62	crawl/www.dpd.com	select		footer-language-select	footer-language-select				Geopost		German|English	Skip	-1	
+www.hermesworld.com#63	crawl/www.hermesworld.com	select							Privatkunden		Österreich|Deutschland|International|USA	Skip	-1	
+www.hermesworld.com#63	crawl/www.hermesworld.com	input	text	searchPhrase	mainsearch		Suche					Skip	0	navigation.search
+www.hermesworld.com#63	crawl/www.hermesworld.com	select							Länderversion		Österreich|Deutschland|International|USA	Skip	-1	
+www.vodafone.de#65	crawl/www.vodafone.de	input	text	username-text	username-text				Benutzername*			Skip	1	Anmelden
+www.vodafone.de#65	crawl/www.vodafone.de	input	password	passwordField	passwordField-input				Passwort*			Skip	1	Anmelden
+www.o2online.de#66	crawl/www.o2online.de	input	text	q			Suchbegriff					Skip	0	
+www.1und1.de#67	crawl/www.1und1.de	input	text	query	search		Bitte Suchbegriff eingeben					Skip	0	
+www.strato.de#69	crawl/www.strato.de	input	text	identifier	username		Benutzername oder Kundennummer	Username	Benutzername oder Kundennummer			Username	0	Login
+www.strato.de#69	crawl/www.strato.de	input	password	passwd	jss_ksb_password		Passwort		Passwort			Password	0	Login
+login.ionos.de#68	crawl/login.ionos.de	input	search		search-input-label-big		Nach Funktionen, Domains und Hilfe suchen		Nach Funktionen, Domains und Hilfe suchen			Skip	-1	
+login.ionos.de#68	crawl/login.ionos.de	input	email	identifier	username				Kundennummer, E-Mail-Adresse oder Domain			Email	0	Weiter
+www.netcup.com#71	crawl/www.netcup.com	input	text		input-v-0-0-0-5-0-0-0		DeinDomainName		Domain noch frei?			Skip	-1	
+banking.dkb.de#73	crawl/banking.dkb.de	input	text	username	username				Anmeldename	40		Username	0	Anmelden
+banking.dkb.de#73	crawl/banking.dkb.de	input	password	password	password				Passwort	40		Password	0	Anmelden
+app.n26.com#74	crawl/app.n26.com	input	email	username	email				E-Mail	128		Email	0	Einloggen
+app.n26.com#74	crawl/app.n26.com	input	password	password	password				Passwort	128		Password	0	Einloggen
+app.n26.com#74	crawl/app.n26.com	select			locale-picker				Sprache ändern		Deutsch|English|Français|Español|Italiano	Skip	-1	
+kunde.comdirect.de#75	crawl/kunde.comdirect.de	input	text	SEARCH_VALUE			WKN, ISIN, Name	Wertpapiersuche				Skip	0	
+kunde.comdirect.de#75	crawl/kunde.comdirect.de	input	text				Volltextsuche	Volltextsuche		256		Skip	-1	
+kunde.comdirect.de#75	crawl/kunde.comdirect.de	input	text	param1	param1Input			Zugangsnummer / Benutzername (E-Mail)	Zugangsnummer / Benutzername (E-Mail)			Skip	3	
+kunde.comdirect.de#75	crawl/kunde.comdirect.de	input	password	param3	param3Input			PIN / Passwort	PIN / Passwort	124		Skip	3	
+kunde.comdirect.de#75	crawl/kunde.comdirect.de	select		j_idt24	j_idt24Input			Direkt zu	Direkt zu		Persönlicher Bereich|Depotübersicht|Abrechnungsdaten|Depotumsätze|Order|Orderbuch|Kontoumsätze|Überweisung|-----------------|Musterdepot|Meine Informer Startseite	Skip	3	
+kunden.commerzbank.de#76	crawl/kunden.commerzbank.de	input	text		tnnr				Benutzername/Teilnehmernummer	50		Username	0	Passwort anzeigen | Login | Wichtige Informationen zum Digital Banking
+kunden.commerzbank.de#76	crawl/kunden.commerzbank.de	input	password		pin				Passwort/PIN	45		Password	0	Passwort anzeigen | Login | Wichtige Informationen zum Digital Banking
+meine.deutsche-bank.de#77	crawl/meine.deutsche-bank.de	input	text	oneid	db-input--0				Deutsche Bank ID			Skip	0	Weiter
+www.sparkasse.de#78	crawl/www.sparkasse.de	input	text	query	query		Suchbegriff eingeben	Suchbegriff eingeben	​			Skip	0	
+www.postbank.de#79	crawl/www.postbank.de	input	search				Suchbegriff eingeben	Suchbegriff eingeben. Suchergebnisse erscheinen automatisch unterhalb des Suchfeldes.	Wie können wir Ihnen helfen?			Skip	4	
+www.postbank.de#79	crawl/www.postbank.de	input	text	mail	form_newsletter_email			Newsletter Anmeldung	E-Mail-Adresse			Skip	5	Abonnieren
+www.elster.de#83	crawl/www.elster.de	input	password		password				Passwort	128		Skip	-1	
+www.twitch.tv#87	crawl/www.twitch.tv	input	text		login-username			E-Mail-Adresse oder Nutzername	E-Mail-Adresse oder Nutzername			Username	0	Weiter | Weiter mit Google | Weiter mit Amazon | Weiter mit Apple
+account.battle.net#88	crawl/account.battle.net	input	text	accountName	accountName		E-Mail-Adresse oder Telefonnummer	Feld für E-Mail-Adresse oder Telefonnummer, E-Mail-Adresse oder Telefonnummer eingeben	E-Mail-Adresse oder Telefonnummer	320		Skip	0	Fortfahren
+store.steampowered.com#85	crawl/store.steampowered.com	input	text	term			Im Shop suchen					Skip	1	
+store.steampowered.com#85	crawl/store.steampowered.com	input	text		«R1lm8raqi»				MIT ACCOUNTNAMEN ANMELDEN			Skip	2	Anmelden
+store.steampowered.com#85	crawl/store.steampowered.com	input	password		«R1lm8raqiH1»				PASSWORT			Skip	2	Anmelden
+www.epicgames.com#86	crawl/www.epicgames.com	input	email	email	email		E-Mail-Adresse	E-Mail-Adresse		1000		Email	0	Fortfahren
+www.epicgames.com#86	crawl/www.epicgames.com	input	password	password	password			Passwort	Passwort	1000		Password	0	Fortfahren
+signin.ea.com#89	crawl/signin.ea.com	input	text	email	email		Telefonnummer oder E-Mail eingeben		TELEFON ODER E-MAIL			Username	1	
+id.atlassian.com#92	crawl/id.atlassian.com	input	email	username	username-_r0_		Enter your email		Email*			Email	0	Continue
+id.atlassian.com#93	crawl/id.atlassian.com	input	email	username	username-_r0_		Enter your email		Email*			Email	0	Continue
+app.notion.com#94	crawl/app.notion.com	input	email		:r5:		Enter your email address...		Email			Email	0	
+app.notion.com#94	crawl/app.notion.com	input	password						Use an organization email to easily collaborate with teammates			Password	0	
+slack.com#95	crawl/slack.com	input	email	email	signup_email		name@work-email.com		Gib deine E-Mail-Adresse ein.			Email	0	Mit E-Mail-Adresse anmelden
+zoom.us#96	crawl/zoom.us	input	text	account	email			E-Mail, Zoom Mail oder Telefonnummer eingeben		128		Skip	0	
+app.asana.com#97	crawl/app.asana.com	input	email	e	lui_0				E-Mail-Adresse			Email	0	
+www.figma.com#98	crawl/www.figma.com	input	email	email	email				E-MAIL-ADRESSE			Email	0	Mit Google-Konto anmelden | Login
+www.figma.com#98	crawl/www.figma.com	input	password	password	current-password				PASSWORT			Password	0	Mit Google-Konto anmelden | Login
+app.hubspot.com#100	crawl/app.hubspot.com	input	email		username		Ihre E-Mail-Adresse eingeben		E-Mail-Adresse			Skip	0	Weiter
+dash.cloudflare.com#102	crawl/dash.cloudflare.com	input	email	email	email				Email			Email	0	Sign in
+dash.cloudflare.com#102	crawl/dash.cloudflare.com	input	password	password	password			Password	Password			Password	0	Sign in
+dash.cloudflare.com#103	crawl/dash.cloudflare.com	input	text	email	base-ui-:rd:				Email			Email	0	Sign up
+dash.cloudflare.com#103	crawl/dash.cloudflare.com	input	password	password	:rg:				Password			NewPassword	0	Sign up
+login.microsoftonline.com#105	crawl/login.microsoftonline.com	input	email	loginfmt	i0116		E-Mail, Telefon oder Skype	Geben Sie Ihre E-Mail-Adresse, Telefonnummer oder Ihren Skype-Namen ein.		113		Email	0	Weiter
+eu-north-1.signin.aws.amazon.com#104	crawl/eu-north-1.signin.aws.amazon.com	input	text	account	account				Account ID or alias (Don't have?)			Skip	0	(Don't have?) | Having trouble? | Sign in | Sign in using root user email
+eu-north-1.signin.aws.amazon.com#104	crawl/eu-north-1.signin.aws.amazon.com	input	text	username	username				IAM username			Skip	0	(Don't have?) | Having trouble? | Sign in | Sign in using root user email
+eu-north-1.signin.aws.amazon.com#104	crawl/eu-north-1.signin.aws.amazon.com	input	password	password	password				Password			Skip	0	(Don't have?) | Having trouble? | Sign in | Sign in using root user email
+cloud.digitalocean.com#106	crawl/cloud.digitalocean.com	input	text	email	email		Enter your email address		email *			Skip	0	Log In
+cloud.digitalocean.com#106	crawl/cloud.digitalocean.com	input	password	password	password		Enter your password		password *			Skip	0	Log In
+login.tailscale.com#107	crawl/login.tailscale.com	input	email	user	user		Enter your email...					Skip	0	Sign in
+login.docker.com#108	crawl/login.docker.com	input	text	username	username				Username or email address *			Email	0	Continue
+www.npmjs.com#109	crawl/www.npmjs.com	input	text	username	login_username				Username			Skip	0	Show | Sign In
+www.npmjs.com#109	crawl/www.npmjs.com	input	password	password	login_password				Password			Skip	0	Show | Sign In
+pypi.org#111	crawl/pypi.org	input	text	q	search		Type '/' to search projects		PyPI durchsuchen			Skip	0	Suche
+pypi.org#111	crawl/pypi.org	input	text	username	username		Benutzername		Benutzername (benötigt)			Username	3	Einloggen
+pypi.org#111	crawl/pypi.org	input	password	password	password		Passwort		Passwort (benötigt)	4096		Password	3	Einloggen
+pypi.org#112	crawl/pypi.org	input	text	q	search		Type '/' to search projects		PyPI durchsuchen			Skip	0	Suche
+pypi.org#112	crawl/pypi.org	input	text	full_name	full_name		Name		Name	100		FullName	4	Konto erstellen
+pypi.org#112	crawl/pypi.org	input	email	email	email		E-Mail-Adresse		E-Mail-Adresse (benötigt)	254		Email	4	Konto erstellen
+pypi.org#112	crawl/pypi.org	input	text	username	username		Benutzername auswählen		Benutzername (benötigt)	50		Username	4	Konto erstellen
+pypi.org#112	crawl/pypi.org	input	password	new_password	new_password		Passwort auswählen		Passwort (benötigt)	4096		NewPassword	4	Konto erstellen
+pypi.org#112	crawl/pypi.org	input	password	password_confirm	password_confirm		Passwort bestätigen		Passwort bestätigen (benötigt)	4096		ConfirmPassword	4	Konto erstellen
+stackoverflow.com#113	crawl/stackoverflow.com	input	text	q			Search…	Search	Stack Internal Implement a knowledge platform layer to power your enterprise and AI tools. Stack Data Licensing Get acce	240		Skip	3	
+stackoverflow.com#113	crawl/stackoverflow.com	input	email	email	email				Email	100		Skip	4	Log in
+stackoverflow.com#113	crawl/stackoverflow.com	input	password	password	password				Password			Password	4	Log in
+www.heise.de#116	crawl/www.heise.de	input	text	username	login-user		E-Mail-Adresse					Skip	0	Anmelden
+www.heise.de#116	crawl/www.heise.de	input	password	password	login-password		Passwort					Skip	0	Anmelden
+www.spiegel.de#117	crawl/www.spiegel.de	input	text				z.B. Hans Müller					Skip	-1	
+news.ycombinator.com#115	crawl/news.ycombinator.com	input	text	acct					username:			Username	0	login
+news.ycombinator.com#115	crawl/news.ycombinator.com	input	password	pw					password:			Password	0	login
+news.ycombinator.com#115	crawl/news.ycombinator.com	input	text	acct					username:			Username	1	create account
+news.ycombinator.com#115	crawl/news.ycombinator.com	input	password	pw					password:			NewPassword	1	create account
+www.faz.net#119	crawl/www.faz.net	input	email	email	register-mail				E-Mail			Email	0	
+www.faz.net#119	crawl/www.faz.net	input	password	password	register-password				Passwort			NewPassword	0	
+www.chefkoch.de#120	crawl/www.chefkoch.de	input	text		username		E-Mail					Skip	0	Weiter
+www.immobilienscout24.de#122	crawl/www.immobilienscout24.de	input	text		downshift-:r0:-input		2-Zim					Skip	-1	
+www.stepstone.de#124	crawl/www.stepstone.de	input	text		genesis-autocomplete-gp-:Rj6l9kpuuutl4vffa:		(Jobtitel, Kompetenz oder Firmenname)					Skip	0	Jobs finden
+www.stepstone.de#124	crawl/www.stepstone.de	input	text		genesis-autocomplete-gp-:Rl6l9kpuuutl4vffa:		(Ort oder 5-stellige PLZ)					Skip	0	Jobs finden
+secure.indeed.com#125	crawl/secure.indeed.com	input	email	__email	ifl-InputFormField-:passport-ssr-Reqktala:				Email address *			Email	1	Continue
+www.duolingo.com#126	crawl/www.duolingo.com	input	text		web-ui1		E-Mail-Adresse oder Nutzername					Email	0	ANMELDEN | MIT GOOGLE ANMELDEN ÜBER GOOGLE ANMELDEN | MIT FACEBOOK ANMELDEN | MIT APPLE ANMELDEN
+www.duolingo.com#126	crawl/www.duolingo.com	input	password		web-ui2		Passwort					Password	0	ANMELDEN | MIT GOOGLE ANMELDEN ÜBER GOOGLE ANMELDEN | MIT FACEBOOK ANMELDEN | MIT APPLE ANMELDEN
+www.komoot.com#128	crawl/www.komoot.com	input	email	email	email		username@email.com		Gib deine E-Mail-Adresse ein			Email	0	
+www.strava.com#127	crawl/www.strava.com	input	email	email	desktop-email		Deine E-Mail		E-Mail			Email	1	Anmelden
+www.strava.com#127	crawl/www.strava.com	input	text	country	desktop-country				country			Skip	1	Anmelden
+www.lieferando.de#129	crawl/www.lieferando.de	input	text	searchText	combobox-input_0		Vollständige Adresse	Ort suchen				Skip	-1	
+www.vinted.de#132	crawl/www.vinted.de	input	text	search_text	search_text		Suche Artikel		Katalog	5000		Skip	0	Katalog
+accounts.shopify.com#134	crawl/accounts.shopify.com	input	email	account[email]	account_email				E-Mail			Email	0	Mit E-Mail fortfahren
+accounts.shopify.com#134	crawl/accounts.shopify.com	input	password	account[password]	account_password				Password			Password	0	Mit E-Mail fortfahren
+users.wix.com#135	crawl/users.wix.com	input	text	email	labelled-element-113aaba4-aafc-ee92-8096-704a3aaba80b			Registrieren oder mit E-Mail-Adresse anmelden	E-Mail-Adresse	524288		Username	-1	
+account.e.jimdo.com#136	crawl/account.e.jimdo.com	input	email	email	email		Email address	Email address				Email	0	Log In
+account.e.jimdo.com#136	crawl/account.e.jimdo.com	input	password	password	password		Password	Password				Password	0	Log In
+my.mollie.com#137	crawl/my.mollie.com	input	text	email	email				E-Mail Adresse			Email	0	Einloggen
+my.mollie.com#137	crawl/my.mollie.com	input	password	password	password				Passwort			Password	0	Einloggen
+dashboard.stripe.com#138	crawl/dashboard.stripe.com	input	email	email	email			email input	E-Mail-Adresse			Skip	0	Anmelden
+dashboard.stripe.com#138	crawl/dashboard.stripe.com	input	password	password	old-password			password input	Passwort Passwort vergessen?			Password	0	Anmelden
+dashboard.stripe.com#139	crawl/dashboard.stripe.com	input	email	email	register-email-input				E-Mail			Email	0	Deutschland | Konto erstellen
+dashboard.stripe.com#139	crawl/dashboard.stripe.com	input	text	name	register-name-input				Vollständiger Name			FullName	0	Deutschland | Konto erstellen
+dashboard.stripe.com#139	crawl/dashboard.stripe.com	input	password	password	register-password-input-with-description				Passwort			NewPassword	0	Deutschland | Konto erstellen
+www.klarna.com#141	crawl/www.klarna.com	input	search	q	_R_4pql9najlaeaucjnalaa_		Artikel oder Marke suchen	Artikel oder Marke suchen		100		Skip	0	
+www.klarna.com#141	crawl/www.klarna.com	input	search	q	_r_2_		Artikel oder Marke suchen	Artikel oder Marke suchen		100		Skip	2	
+login.yahoo.com#142	crawl/login.yahoo.com	input	text	username	username				Benutzername oder E-Mail-Adresse			Skip	0	Weiter | Anmelden mit Google
+account.proton.me#143	crawl/account.proton.me	input	text		username				E‐Mail‐Adresse oder Benutzername			Username	0	Weiter | Probleme beim Anmelden?
+account.proton.me#144	crawl/account.proton.me	input	password		password				Passwort			NewPassword	0	Verwende stattdessen deine aktuelle E-Mail-Adresse | Weitere Informationen: Du benötigst eine Proton-Adresse um Proton Mail und Proton Calendar zu nutzen | Anmelden
+tuta.com#149	crawl/tuta.com	select							Language		English|Česky|Deutsch|Español|Suomi|Français|Magyar nyelv|Italiano|日本語|Nederlands|Polski|Português, BR|Pусский|Svenska|Yкраїнська|中文	Skip	-1	
+bitwarden.com#150	crawl/bitwarden.com	select			footer-language				Language		English (United States)|English (United Kingdom)|Deutsch (Deutschland)|Español (Latinoamérica)|Français (France)|Italiano (Italia)|日本語 (日本)|Nederlands (Nederland)|Português (Brasil)|Svenska (Sverige)	Skip	-1	
+vault.bitwarden.com#151	crawl/vault.bitwarden.com	input	email		email				E-Mail-Adresse * (erforderlich)			Skip	0	Fortsetzen | Mit Passkey anmelden | Single Sign-On verwenden

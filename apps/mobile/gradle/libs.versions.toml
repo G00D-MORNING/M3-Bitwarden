@@ -9,6 +9,8 @@ compose-multiplatform = "1.12.2"
 # Material 3 Expressive APIs are only public in the alpha line of the JetBrains Material3 artifact.
 compose-material3 = "1.12.0-alpha03"
 kotlin = "2.4.21"
+kotlinx-coroutines = "1.10.2"
+bitwarden-sdk = "LOCAL"
 
 [libraries]
 androidx-activity-compose = { module = "androidx.activity:activity-compose", version.ref = "androidx-activity" }
@@ -18,6 +20,9 @@ compose-material3 = { module = "org.jetbrains.compose.material3:material3", vers
 compose-runtime = { module = "org.jetbrains.compose.runtime:runtime", version.ref = "compose-multiplatform" }
 compose-ui = { module = "org.jetbrains.compose.ui:ui", version.ref = "compose-multiplatform" }
 kotlin-test = { module = "org.jetbrains.kotlin:kotlin-test", version.ref = "kotlin" }
+
+bitwarden-sdk = { module = "com.bitwarden:sdk-android.dev", version.ref = "bitwarden-sdk" }
+kotlinx-coroutines-android = { module = "org.jetbrains.kotlinx:kotlinx-coroutines-android", version.ref = "kotlinx-coroutines" }
 
 [plugins]
 androidApplication = { id = "com.android.application", version.ref = "agp" }

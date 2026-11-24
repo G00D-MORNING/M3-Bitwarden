@@ -74,27 +74,43 @@ class AutofillVault(private val store: AutofillStore) {
         val card = item.card
         val identity = item.identity
         val v = when (kind) {
-            ValueKind.Username -> login?.username ?: identity?.email
+            ValueKind.Username -> login?.username ?: identity?.username?.ifEmpty { identity.email }
             ValueKind.Password -> login?.password
             ValueKind.Totp -> login?.totpSecret?.let { totp(it, epochSeconds) }
             ValueKind.CardNumber -> card?.number
             ValueKind.CardHolder -> card?.cardholder
-            ValueKind.CardExpiry -> card?.let { "${it.expMonth}/${it.expYear.takeLast(2)}" }
+            // Canonical forms; ValueFormatter adapts them to each field ("08/29", "0829", option index).
+            ValueKind.CardExpiry -> card?.let { c -> c.expMonth.takeIf { it.isNotEmpty() }?.let { m -> "${m.padStart(2, '0')}/${fullYear(c.expYear)}" } }
             ValueKind.CardExpiryMonth -> card?.expMonth
-            ValueKind.CardExpiryYear -> card?.expYear
+            ValueKind.CardExpiryYear -> card?.expYear?.let(::fullYear)
             ValueKind.CardCvv -> card?.code
-            ValueKind.FullName -> identity?.fullName ?: card?.cardholder
-            ValueKind.FirstName -> identity?.fullName?.substringBefore(' ')
-            ValueKind.LastName -> identity?.fullName?.substringAfterLast(' ')
+            ValueKind.CardBrand -> card?.brand
+            ValueKind.FullName -> identity?.let { listOf(it.firstName, it.middleName, it.lastName).filter(String::isNotBlank).joinToString(" ") } ?: card?.cardholder
+            ValueKind.FirstName -> identity?.firstName
+            ValueKind.LastName -> identity?.lastName
             ValueKind.Email -> identity?.email ?: login?.username?.takeIf { '@' in it }
-            ValueKind.Phone -> identity?.phone
-            ValueKind.Address -> identity?.address?.lineSequence()?.firstOrNull()
-            ValueKind.PostalCode -> identity?.address?.let { Regex("\\b\\d{4,5}\\b").find(it)?.value }
-            ValueKind.City -> identity?.address?.let { Regex("\\b\\d{4,5}\\s+([^,\\n]+)").find(it)?.groupValues?.get(1)?.trim() }
-            ValueKind.Country -> null
+            ValueKind.Phone, ValueKind.PhoneCountryCode, ValueKind.PhoneAreaCode, ValueKind.PhoneLocal -> identity?.phone
+            ValueKind.Address, ValueKind.Street, ValueKind.HouseNumber -> identity?.address1
+            ValueKind.AddressLine2 -> identity?.let { listOf(it.address2, it.address3).filter(String::isNotBlank).joinToString(", ") }
+            ValueKind.PostalCode -> identity?.postalCode
+            ValueKind.City -> identity?.city
+            ValueKind.State -> identity?.state
+            ValueKind.Country -> identity?.country
             ValueKind.Organization -> identity?.company
+            ValueKind.Title -> identity?.title
         }?.takeIf { it.isNotEmpty() } ?: return null
         return if (otpDigitIndex >= 0) v.getOrNull(otpDigitIndex)?.toString() else v
+    }
+
+    private fun fullYear(y: String): String = y.trim().let { if (it.length == 2 && it.all(Char::isDigit)) "20$it" else it }
+
+    /**
+     * The value for [assignment], shaped for its field (format, length, list option).
+     * Returns null when the item has nothing that fits.
+     */
+    fun fill(id: String, assignment: com.framepersecond.m3bitwarden.autofill.FieldAssignment, epochSeconds: Long): com.framepersecond.m3bitwarden.autofill.format.FillValue? {
+        val raw = value(id, assignment.value, epochSeconds, assignment.otpDigitIndex)
+        return com.framepersecond.m3bitwarden.autofill.format.ValueFormatter.format(assignment.value, raw, assignment.format)
     }
 
     /** Real codes come from the backend (Bitwarden SDK); the demo generator is only for sample data. */

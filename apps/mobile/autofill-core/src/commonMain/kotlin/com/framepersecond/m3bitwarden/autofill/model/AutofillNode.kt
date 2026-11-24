@@ -32,13 +32,20 @@ data class AutofillNode(
     val maxLength: Int = -1,
     val webDomain: String? = null,
     val webScheme: String? = null,
+    /** Visible option texts of a select / list field (`<select>`, spinner), in order. */
+    val options: List<String> = emptyList(),
     val children: List<AutofillNode> = emptyList(),
 ) {
-    val isInput: Boolean get() = kind == NodeKind.TextInput
+    /** Anything we can fill: text inputs and lists (selects). */
+    val isInput: Boolean get() = kind == NodeKind.TextInput || kind == NodeKind.Select
+    val isSelect: Boolean get() = kind == NodeKind.Select
 }
 
 enum class NodeKind {
     TextInput,
+
+    /** A list the platform fills by index: HTML `<select>`, Android spinners. */
+    Select,
     Button,
     Label,
     Container,
@@ -60,15 +67,38 @@ enum class FieldType {
     CardExpiryMonth,
     CardExpiryYear,
     CardCvv,
+
+    /** Card network select or field ("Visa", "Mastercard"), filled from the card's brand. */
+    CardBrand,
     FullName,
     FirstName,
     LastName,
     Phone,
+
+    /** Split phone fields: "+49" | "089" | "1234567" (US: area | 3 digits | 4 digits). */
+    PhoneCountryCode,
+    PhoneAreaCode,
+    PhoneLocal,
+
+    /** Street and house number in one field ("Musterstraße 12"). */
     Address,
+
+    /** Street name only, when the house number has its own field. */
+    Street,
+    HouseNumber,
+
+    /** Apartment, c/o, floor ("Adresszusatz"). */
+    AddressLine2,
     PostalCode,
     City,
+
+    /** State, province, region ("Bundesland"). */
+    State,
     Country,
     Organization,
+
+    /** Salutation or honorific ("Anrede", "Herr/Frau", "Dr."). */
+    Title,
     Unknown,
     ;
 
@@ -76,7 +106,7 @@ enum class FieldType {
     val isIdentifier: Boolean get() = this == Username || this == Email
     val isCard: Boolean
         get() = this == CardNumber || this == CardHolder || this == CardExpiry ||
-            this == CardExpiryMonth || this == CardExpiryYear || this == CardCvv
+            this == CardExpiryMonth || this == CardExpiryYear || this == CardCvv || this == CardBrand
 }
 
 /** A classified input with the evidence that led to the decision. */
@@ -92,4 +122,16 @@ data class DetectedField(
     val maxLength: Int,
     val webDomain: String?,
     val webScheme: String?,
+    /** What the field shows about the expected format, used when filling. */
+    val format: FieldFormat = FieldFormat(),
+    /** Which `<form>` on the page the field belongs to (0 = none), so two forms are never mixed. */
+    val formIndex: Int = 0,
+)
+
+/** Format clues of one field: placeholder text, length limit and list options. */
+data class FieldFormat(
+    val placeholder: String? = null,
+    val maxLength: Int = -1,
+    val options: List<String> = emptyList(),
+    val isSelect: Boolean = false,
 )

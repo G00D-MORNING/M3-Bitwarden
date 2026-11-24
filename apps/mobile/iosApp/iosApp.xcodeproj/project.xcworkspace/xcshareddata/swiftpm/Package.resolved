@@ -1,0 +1,14 @@
+{
+  "originHash" : "8e668c2345aabddcac6c5310a31c492f07ced698649213e618580aa2148a5f8b",
+  "pins" : [
+    {
+      "identity" : "sdk-swift",
+      "kind" : "remoteSourceControl",
+      "location" : "https://github.com/bitwarden/sdk-swift",
+      "state" : {
+        "revision" : "d9afe6f534abab5f0dc7934060f89b83155d21e0"
+      }
+    }
+  ],
+  "version" : 3
+}

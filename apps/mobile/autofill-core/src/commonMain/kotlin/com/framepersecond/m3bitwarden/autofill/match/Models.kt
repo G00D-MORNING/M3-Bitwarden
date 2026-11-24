@@ -75,6 +75,9 @@ enum class MatchReason {
     EquivalentDomain,
     AppVerifiedDomain,
     Regex,
+
+    /** App from the [KnownApps] table or a reverse-domain package name; always confirmed first. */
+    KnownApp,
     NameHeuristic,
 
     /** Cards and identities: offered on any matching form regardless of site. */

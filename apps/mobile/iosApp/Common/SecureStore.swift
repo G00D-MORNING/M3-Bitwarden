@@ -51,6 +51,12 @@ enum SecureStore {
         return result as? Data
     }
 
+    /// Reads the Face ID protected user key off the main thread, so the system prompt can appear
+    /// (a blocking keychain call on the main thread froze the AutoFill sheet as a white page).
+    static func userKey(reason: String) async -> Data? {
+        await Task.detached(priority: .userInitiated) { get(.userKey, reason: reason) }.value
+    }
+
     /// Whether the biometric key exists, without prompting.
     static var hasUserKey: Bool {
         var query = base(.userKey)

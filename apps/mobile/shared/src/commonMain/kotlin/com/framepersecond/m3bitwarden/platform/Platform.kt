@@ -49,3 +49,12 @@ fun secureRandomInt(bound: Int): Int {
         if (value <= limit) return (value % bound.toUInt()).toInt()
     }
 }
+
+/** Small non-secret preferences (theme, timeout). iOS: shared App Group defaults; Android: SharedPreferences. */
+expect object PlatformPrefs {
+    fun getString(key: String): String?
+    fun putString(key: String, value: String?)
+}
+
+/** Opens a website in the system browser. */
+expect fun openUrl(url: String)

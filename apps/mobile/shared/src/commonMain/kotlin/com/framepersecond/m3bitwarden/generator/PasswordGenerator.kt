@@ -90,7 +90,10 @@ object PasswordGenerator {
         if (password.any { it.isLowerCase() }) pool += 26
         if (password.any { it.isDigit() }) pool += 10
         if (password.any { !it.isLetterOrDigit() }) pool += 32
-        return password.length * log2(pool.coerceAtLeast(1).toDouble())
+        var bits = password.length * log2(pool.coerceAtLeast(1).toDouble())
+        // A trailing year ("Sommer2019") is the first thing cracking tools try.
+        if (Regex("(19|20)\\d\\d$").containsMatchIn(password)) bits -= 14
+        return bits.coerceAtLeast(0.0)
     }
 
     fun strength(bits: Double): Strength = when {

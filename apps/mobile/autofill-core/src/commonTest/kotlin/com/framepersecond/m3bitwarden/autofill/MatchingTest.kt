@@ -42,6 +42,19 @@ class MatchingTest {
     }
 
     @Test
+    fun siblingSubdomainsStayApart() {
+        // Self-hosted services under one domain: each login only fills its own host.
+        val creds = listOf(
+            login("matrix", "https://matrix.jochenderrochen.de"),
+            login("cloud", "https://cloud.jochenderrochen.de"),
+            login("base", "https://jochenderrochen.de"),
+        )
+        val result = MatchEngine(emptyList()).match(page("matrix.jochenderrochen.de"), creds)
+        assertEquals(listOf("matrix", "base"), result.primary.map { it.credential.id })
+        assertEquals(listOf("cloud"), result.possible.map { it.credential.id })
+    }
+
+    @Test
     fun subdomainMatchesBaseDomain() {
         val r = MatchEngine().match(page("accounts.google.com"), listOf(login("g", "https://google.com"), login("x", "https://example.com")))
         assertEquals(listOf("g"), r.primary.map { it.credential.id })

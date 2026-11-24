@@ -121,9 +121,9 @@ class M3BAutofillService : AutofillService() {
         } else {
             val now = System.currentTimeMillis() / 1000
             for (m in plan.matches.primary.take(MAX_DIRECT)) {
-                val label = DatasetFactory.Label(m.credential.name, subtitleFor(m.credential.username, m.reason, m.insecureTransport))
+                val label = DatasetFactory.Label(m.credential.name, subtitleFor(m.credential.username, hostOf(m.credential), m.reason, m.insecureTransport))
                 val ds = datasets.direct(assignments, ids, label, spec(count)) { a ->
-                    vault.value(m.credential.id, a.value, now, a.otpDigitIndex)
+                    vault.fill(m.credential.id, a, now)
                 } ?: continue
                 response.addDataset(ds); count++
             }
@@ -145,7 +145,7 @@ class M3BAutofillService : AutofillService() {
                 newFields, ids,
                 DatasetFactory.Label(getString(R.string.autofill_generate_title), getString(R.string.autofill_generate_subtitle), R.drawable.ic_autofill_key),
                 spec(count),
-            ) { generated }?.let { response.addDataset(it); count++ }
+            ) { com.framepersecond.m3bitwarden.autofill.format.FillValue.Text(generated) }?.let { response.addDataset(it); count++ }
         }
 
         // Always offer the full vault, with a hint when we have a link suggestion.
@@ -171,8 +171,13 @@ class M3BAutofillService : AutofillService() {
         nowEpochMs = { System.currentTimeMillis() },
     )
 
-    private fun subtitleFor(username: String, reason: MatchReason, insecure: Boolean): String {
-        val base = username.ifBlank { getString(R.string.autofill_no_username) }
+    /** Website with subdomain, so logins for nas.example.com and mail.example.com stay apart. */
+    private fun hostOf(c: com.framepersecond.m3bitwarden.autofill.match.Credential): String =
+        c.uris.firstNotNullOfOrNull { com.framepersecond.m3bitwarden.autofill.url.UrlInfo.parse(it.uri)?.host?.removePrefix("www.") }.orEmpty()
+
+    private fun subtitleFor(username: String, host: String, reason: MatchReason, insecure: Boolean): String {
+        val user = username.ifBlank { getString(R.string.autofill_no_username) }
+        val base = if (host.isEmpty()) user else "$user · $host"
         return when {
             insecure -> getString(R.string.autofill_insecure_subtitle, base)
             reason == MatchReason.EquivalentDomain -> getString(R.string.autofill_equivalent_subtitle, base)
@@ -246,7 +251,12 @@ class M3BAutofillService : AutofillService() {
  * set of domains Bitwarden treats as one site.
  */
 object EquivalentDomains {
-    val defaults: List<Set<String>> = listOf(
+    /** The server's groups once synced, otherwise the built-in fallback. */
+    val defaults: List<Set<String>>
+        get() = com.framepersecond.m3bitwarden.android.vault.AndroidVault.get(com.framepersecond.m3bitwarden.platform.AndroidPlatform.context)
+            .equivalentDomains.ifEmpty { fallback }
+
+    private val fallback: List<Set<String>> = listOf(
         setOf("google.com", "google.de", "youtube.com", "gmail.com"),
         setOf("amazon.com", "amazon.de", "amazon.co.uk", "amazon.fr", "amazon.it", "amazon.es", "amazon.at"),
         setOf("microsoft.com", "live.com", "outlook.com", "hotmail.com", "office.com", "xbox.com", "microsoftonline.com"),
