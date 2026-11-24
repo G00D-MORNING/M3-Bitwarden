@@ -54,8 +54,11 @@ import kotlin.coroutines.resume
  * Connects the Android app and its autofill service to Vaultwarden.
  *
  * Networking: [VaultwardenApi] (device certificate). Cryptography: only the official Bitwarden
- * SDK — this class never derives keys or decrypts anything itself. Decrypted items live in
- * memory ([VaultSession]) while unlocked and are wiped on lock.
+ * SDK — this class never derives keys or decrypts anything itself.
+ *
+ * Nothing of the vault is stored on the device, not even encrypted: unlocking always loads it
+ * fresh from Vaultwarden into memory ([VaultSession]), and it is removed again on lock, when the
+ * connection is lost, and when the app has been in the background for the chosen time.
  */
 class AndroidVault private constructor(private val context: Context) : VaultBackend {
 
@@ -89,7 +92,40 @@ class AndroidVault private constructor(private val context: Context) : VaultBack
 
     init {
         VaultSession.onLock { wipe() }
+        // Older versions kept an encrypted copy of the vault on disk; remove it.
+        store.removeLeftoverCache()
+        watchConnection()
         refreshPhase()
+    }
+
+    // MARK: Connection
+
+    private var offlineLock: Runnable? = null
+
+    /**
+     * Without a connection to Vaultwarden the vault is not shown: losing the network for more than
+     * a few seconds (a handover between Wi-Fi and mobile data is shorter) locks it.
+     */
+    private fun watchConnection() {
+        val cm = context.getSystemService(android.net.ConnectivityManager::class.java) ?: return
+        cm.registerDefaultNetworkCallback(object : android.net.ConnectivityManager.NetworkCallback() {
+            override fun onAvailable(network: android.net.Network) {
+                main.post { offlineLock?.let(main::removeCallbacks); offlineLock = null }
+            }
+
+            override fun onLost(network: android.net.Network) {
+                main.post {
+                    if (!VaultSession.isUnlocked) return@post
+                    offlineLock?.let(main::removeCallbacks)
+                    offlineLock = Runnable { if (VaultSession.isUnlocked) lockForLostConnection() }.also { main.postDelayed(it, 5_000) }
+                }
+            }
+        })
+    }
+
+    private fun lockForLostConnection() {
+        lock()
+        error = OFFLINE_MESSAGE
     }
 
     // MARK: Account
@@ -205,7 +241,6 @@ class AndroidVault private constructor(private val context: Context) : VaultBack
         pendingLogin = null
         VaultSession.connect(this, acc.email, M3BConfig.serverHost)
         unlock(client, acc, InitUserCryptoMethod.MasterPasswordUnlock(password, MasterPasswordUnlockData(acc.kdf, acc.masterKeyWrappedUserKey, acc.email)))
-        sync()
     }
 
     fun cancelTwoFactor() {
@@ -218,11 +253,10 @@ class AndroidVault private constructor(private val context: Context) : VaultBack
     fun unlock(password: String) = launchTask {
         val acc = account ?: return@launchTask refreshPhase()
         unlock(makeClient(), acc, InitUserCryptoMethod.MasterPasswordUnlock(password, MasterPasswordUnlockData(acc.kdf, acc.masterKeyWrappedUserKey, acc.email)))
-        syncQuietly()
     }
 
-    /** Fingerprint / face unlock. [syncTimeoutMs] limits how long autofill waits for fresh data. */
-    suspend fun unlockWithBiometrics(activityContext: Context, syncTimeoutMs: Long? = null): Boolean {
+    /** Fingerprint / face unlock. [loadTimeoutMs] limits how long autofill waits for the vault. */
+    suspend fun unlockWithBiometrics(activityContext: Context, loadTimeoutMs: Long? = null): Boolean {
         val acc = account ?: return false
         val cipher = store.biometricCipher() ?: run {
             error = "Biometrisches Entsperren ist nicht mehr gültig. Bitte mit dem Master-Passwort entsperren."
@@ -254,17 +288,8 @@ class AndroidVault private constructor(private val context: Context) : VaultBack
         val userKey = store.unwrapBiometricKey(authenticated) ?: return false
         var ok = false
         runSuspending {
-            unlock(makeClient(), acc, InitUserCryptoMethod.DecryptedKey(userKey))
+            unlock(makeClient(), acc, InitUserCryptoMethod.DecryptedKey(userKey), loadTimeoutMs)
             ok = true
-            if (syncTimeoutMs != null) {
-                try {
-                    withTimeout(syncTimeoutMs) { syncQuietly() }
-                } catch (_: TimeoutCancellationException) {
-                    VaultSession.syncStatus = "Offline-Daten"
-                }
-            } else {
-                scope.launch { syncQuietly() }
-            }
         }
         return ok
     }
@@ -287,7 +312,7 @@ class AndroidVault private constructor(private val context: Context) : VaultBack
         if (phase == Phase.Unlocked) phase = Phase.Locked
     }
 
-    private suspend fun unlock(client: Client, acc: Account, method: InitUserCryptoMethod) {
+    private suspend fun unlock(client: Client, acc: Account, method: InitUserCryptoMethod, loadTimeoutMs: Long? = null) {
         client.crypto().initializeUserCrypto(
             InitUserCryptoRequest(
                 userId = acc.userId.ifEmpty { null },
@@ -303,10 +328,23 @@ class AndroidVault private constructor(private val context: Context) : VaultBack
         if (method is InitUserCryptoMethod.MasterPasswordUnlock && biometricsWanted && biometricsAvailable()) {
             runCatching { store.storeBiometricKey(client.crypto().getUserEncryptionKey()) }
         }
-        store.loadCache()?.let { runCatching { publish(it) } }
+        // The vault is only opened with fresh data from the server; nothing is read from the device.
+        try {
+            if (loadTimeoutMs != null) withTimeout(loadTimeoutMs) { sync() } else sync()
+        } catch (e: Exception) {
+            wipe()
+            throw if (isConnectionError(e)) OfflineException() else e
+        }
         VaultSession.markUnlocked()
         phase = Phase.Unlocked
     }
+
+    private class OfflineException : Exception(OFFLINE_MESSAGE)
+
+    /** Errors that mean "no connection to the server" (as opposed to the server refusing). */
+    private fun isConnectionError(e: Exception): Boolean =
+        e is TimeoutCancellationException || e is java.io.IOException ||
+            e is VaultwardenApi.Failure.Offline || e is VaultwardenApi.Failure.BlockedByCloudflare || e is VaultwardenApi.Failure.NoCertificate
 
     // MARK: Sync
 
@@ -314,7 +352,6 @@ class AndroidVault private constructor(private val context: Context) : VaultBack
         VaultSession.syncing = true
         try {
             val data = api.sync()
-            store.saveCache(data)
             publish(data)
             VaultSession.syncStatus = "Aktualisiert " + java.text.DateFormat.getTimeInstance(java.text.DateFormat.SHORT).format(java.util.Date())
         } finally {
@@ -322,14 +359,15 @@ class AndroidVault private constructor(private val context: Context) : VaultBack
         }
     }
 
+    /** Refreshes the open vault; if Vaultwarden cannot be reached, the vault is locked. */
     suspend fun syncQuietly() {
         try {
             sync()
-        } catch (e: VaultwardenApi.Failure) {
-            VaultSession.syncStatus = "Nicht aktualisiert"
-            if (phase == Phase.Unlocked) VaultSession.message = e.message
         } catch (e: Exception) {
+            if (phase != Phase.Unlocked) return
+            if (isConnectionError(e)) return lockForLostConnection()
             VaultSession.syncStatus = "Nicht aktualisiert"
+            if (e is VaultwardenApi.Failure) VaultSession.message = e.message
         }
     }
 
@@ -583,6 +621,7 @@ class AndroidVault private constructor(private val context: Context) : VaultBack
 
     companion object {
         private const val ACCOUNT = "account"
+        const val OFFLINE_MESSAGE = "Keine Verbindung zu Vaultwarden. Der Tresor wird nur mit Verbindung geöffnet und nie auf dem Gerät gespeichert."
 
         @Volatile private var instance: AndroidVault? = null
 

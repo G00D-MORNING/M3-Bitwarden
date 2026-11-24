@@ -24,7 +24,7 @@ object Unlock {
         if (VaultSession.isUnlocked) return onResult(true)
         val vault = AndroidVault.get(activity)
         if (vault.phase == AndroidVault.Phase.Locked && vault.canUseBiometrics) {
-            MainScope().launch { onResult(vault.unlockWithBiometrics(activity, syncTimeoutMs = 3_000)) }
+            MainScope().launch { onResult(vault.unlockWithBiometrics(activity, loadTimeoutMs = 20_000)) }
             return
         }
         // Not signed in, no certificate or no biometrics: the app asks for the master password.

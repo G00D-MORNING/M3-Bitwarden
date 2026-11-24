@@ -108,7 +108,7 @@ struct ExtensionRoot: View {
 
     private func tryBiometrics() async {
         trying = true
-        let ok = await service.unlockWithBiometrics(syncTimeout: 4)
+        let ok = await service.unlockWithBiometrics(loadTimeout: 20)
         trying = false
         if ok { finishUnlock() }
     }

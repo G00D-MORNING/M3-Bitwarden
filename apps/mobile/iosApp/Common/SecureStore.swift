@@ -107,15 +107,10 @@ struct StoredTokens: Codable {
     var expiresAt: Date
 }
 
-/// The encrypted sync response, kept so the extension and offline starts have data.
+/// The encrypted copy of the vault that older versions kept on disk. The vault is no longer stored
+/// on the device; this only removes what an older version left behind.
 enum VaultCache {
     private static var url: URL { M3BConfig.containerURL.appendingPathComponent("vault-sync.json") }
 
-    static func save(_ data: Data) throws {
-        try data.write(to: url, options: [.atomic, .completeFileProtectionUntilFirstUserAuthentication])
-    }
-
-    static func load() -> Data? { try? Data(contentsOf: url) }
-
-    static func clear() { try? FileManager.default.removeItem(at: url) }
+    static func removeLeftover() { try? FileManager.default.removeItem(at: url) }
 }

@@ -154,7 +154,18 @@ final class VaultwardenAPI {
         if response.statusCode == 400 || response.statusCode == 401 {
             throw Failure.invalidCredentials(Self.message(in: body))
         }
-        throw Failure.server(response.statusCode, Self.message(in: body))
+        throw Failure.server(response.statusCode, Self.describe(req, message: Self.message(in: body), data: data))
+    }
+
+    /// The server's message, or which request failed and the start of the answer (no request body,
+    /// no tokens), so an error the server does not explain can still be traced.
+    private static func describe(_ req: URLRequest, message: String, data: Data) -> String {
+        if !message.isEmpty { return message }
+        let path = req.url.map { url in url.path.replacingOccurrences(of: M3BConfig.serverURL.path, with: "") } ?? ""
+        let text = String(decoding: data.prefix(400), as: UTF8.self)
+            .replacingOccurrences(of: "<[^>]+>", with: " ", options: .regularExpression)
+            .split(whereSeparator: \.isWhitespace).joined(separator: " ")
+        return "\(req.httpMethod ?? "") \(path)" + (text.isEmpty ? "" : " – \(text.prefix(160))")
     }
 
     private func send<T: Decodable>(json: [String: Any], to url: URL, auth: Bool) async throws -> T {
@@ -192,7 +203,7 @@ final class VaultwardenAPI {
         guard (200..<300).contains(response.statusCode) else {
             let body = (try? JSONSerialization.jsonObject(with: data)) as? [String: Any] ?? [:]
             if response.statusCode == 401 { throw Failure.notSignedIn }
-            throw Failure.server(response.statusCode, Self.message(in: body))
+            throw Failure.server(response.statusCode, Self.describe(req, message: Self.message(in: body), data: data))
         }
         return data
     }

@@ -2,13 +2,18 @@ import BitwardenSdk
 import Foundation
 import Shared
 import UIKit
+import Network
 import UniformTypeIdentifiers
 
 /// Connects the app (and the AutoFill extension) to Vaultwarden.
 ///
 /// Networking: `VaultwardenAPI` (device certificate). Cryptography: only the official
-/// Bitwarden SDK — this class never derives keys or decrypts anything itself. Decrypted items
-/// live in memory (Kotlin `VaultSession`) while unlocked and are wiped on lock.
+/// Bitwarden SDK — this class never derives keys or decrypts anything itself.
+///
+/// Nothing of the vault is stored on the device, not even encrypted: unlocking always loads it
+/// fresh from Vaultwarden into memory (Kotlin `VaultSession`), and it is removed again on lock,
+/// when the connection is lost, and when the app has been in the background for the chosen time
+/// (at the latest before iOS suspends it).
 @MainActor
 final class VaultService: NSObject, ObservableObject {
     enum Phase: Equatable {
@@ -32,12 +37,23 @@ final class VaultService: NSObject, ObservableObject {
     private(set) var decrypted: [String: CipherView] = [:]
     private var pendingLogin: (email: String, hash: String, password: String, kdf: Kdf)?
     private var backgroundedAt: Date?
+    private var backgroundLock: Task<Void, Never>?
+    private var endBackgroundTime: (() -> Void)?
+
+    /// Asks iOS for time in the background and calls the handler just before it runs out; returns
+    /// a function that gives the time back. Set by the app (extensions have no UIApplication).
+    var requestBackgroundTime: ((@escaping () -> Void) -> () -> Void)?
+    private let connection = NWPathMonitor()
+    private var offlineLock: Task<Void, Never>?
 
     override private init() {
         super.init()
         VaultSession.shared.onLock { [weak self] in
             Task { @MainActor in self?.wipe() }
         }
+        // Older versions kept an encrypted copy of the vault on disk; remove it.
+        VaultCache.removeLeftover()
+        watchConnection()
         refreshPhase()
     }
 
@@ -121,7 +137,6 @@ final class VaultService: NSObject, ObservableObject {
                 password: password,
                 masterPasswordUnlock: MasterPasswordUnlockData(kdf: Kdf(model: kdfModel), masterKeyWrappedUserKey: key, salt: account.email)
             ))
-            try await self.sync()
         }
     }
 
@@ -139,30 +154,25 @@ final class VaultService: NSObject, ObservableObject {
                 password: password,
                 masterPasswordUnlock: MasterPasswordUnlockData(kdf: Kdf(model: account.kdf), masterKeyWrappedUserKey: account.masterKeyWrappedUserKey, salt: account.email)
             ))
-            await self.syncQuietly()
         }
     }
 
-    /// Face ID / Touch ID. [syncTimeout] limits how long the extension waits for fresh data.
+    /// Face ID / Touch ID. [loadTimeout] limits how long the extension waits for the vault.
     @discardableResult
-    func unlockWithBiometrics(syncTimeout: TimeInterval? = nil) async -> Bool {
+    func unlockWithBiometrics(loadTimeout: TimeInterval? = nil) async -> Bool {
         await run {
             guard let account = self.account,
                   let key = await SecureStore.userKey(reason: "Tresor entsperren"),
                   let userKey = String(data: key, encoding: .utf8)
             else { return }
-            try await self.unlock(client: self.makeClient(), account: account, method: .decryptedKey(decryptedUserKey: userKey))
-            if let syncTimeout {
-                await self.syncQuietly(timeout: syncTimeout)
-            } else {
-                Task { await self.syncQuietly() }
-            }
+            try await self.unlock(client: self.makeClient(), account: account, method: .decryptedKey(decryptedUserKey: userKey), loadTimeout: loadTimeout)
         }
         return phase == .unlocked
     }
 
     func lock() {
-        VaultSession.shared.lock() // triggers wipe() through the listener
+        VaultSession.shared.lock() // clears the Kotlin side and calls wipe() through the listener
+        wipe() // right away too: iOS may suspend the app before the listener's task runs
     }
 
     func signOut() {
@@ -170,20 +180,94 @@ final class VaultService: NSObject, ObservableObject {
         SecureStore.delete(.tokens)
         SecureStore.delete(.account)
         SecureStore.delete(.userKey)
-        VaultCache.clear()
+        VaultCache.removeLeftover()
         Task { await CredentialIdentitySync.clear() }
         VaultSession.shared.disconnect()
         folderIds = [:]
         phase = .signedOut
     }
 
-    func appDidEnterBackground() { backgroundedAt = Date() }
+    /// Locks after the chosen time in the background, and at the latest when iOS is about to
+    /// suspend the app (its memory would otherwise keep the vault until the next start).
+    func appDidEnterBackground() {
+        backgroundedAt = Date()
+        guard phase == .unlocked else { return }
+        let timeout = max(0, AppSettings.shared.timeoutSeconds)
+        if timeout == 0 { return lock() }
+        endBackgroundTime = requestBackgroundTime? { [weak self] in
+            // iOS calls this on the main thread just before suspending the app.
+            MainActor.assumeIsolated { self?.lockFromBackground() }
+        }
+        backgroundLock = Task { @MainActor [weak self] in
+            try? await Task.sleep(nanoseconds: UInt64(timeout) * 1_000_000_000)
+            guard !Task.isCancelled else { return }
+            self?.lockFromBackground()
+        }
+    }
 
     func appWillEnterForeground() {
+        backgroundLock?.cancel()
+        backgroundLock = nil
+        endBackgroundTask()
         let timeout = AppSettings.shared.timeoutSeconds
-        if let since = backgroundedAt, timeout >= 0, Date().timeIntervalSince(since) >= TimeInterval(timeout) { lock() }
+        if let since = backgroundedAt, Date().timeIntervalSince(since) >= TimeInterval(max(0, timeout)) { lock() }
         backgroundedAt = nil
         if phase == .unlocked { Task { await syncQuietly() } }
+    }
+
+    private func lockFromBackground() {
+        lock()
+        endBackgroundTask()
+    }
+
+    private func endBackgroundTask() {
+        endBackgroundTime?()
+        endBackgroundTime = nil
+    }
+
+    /// Without a connection to Vaultwarden the vault is not shown: losing the network for more
+    /// than a few seconds (a handover between Wi-Fi and mobile data is shorter) locks it.
+    private func watchConnection() {
+        connection.pathUpdateHandler = { [weak self] path in
+            let online = path.status == .satisfied
+            Task { @MainActor in self?.connectionChanged(online: online) }
+        }
+        connection.start(queue: DispatchQueue(label: "m3b.connection"))
+    }
+
+    private func connectionChanged(online: Bool) {
+        offlineLock?.cancel()
+        offlineLock = nil
+        guard !online, phase == .unlocked else { return }
+        offlineLock = Task { @MainActor [weak self] in
+            try? await Task.sleep(nanoseconds: 5_000_000_000)
+            guard !Task.isCancelled, let self, self.phase == .unlocked else { return }
+            self.lockForLostConnection()
+        }
+    }
+
+    private func lockForLostConnection() {
+        lock()
+        errorMessage = Self.offlineMessage
+    }
+
+    static let offlineMessage = "Keine Verbindung zu Vaultwarden. Der Tresor wird nur mit Verbindung geöffnet und nie auf dem Gerät gespeichert."
+
+    /// Errors that mean "no connection to the server" (as opposed to the server refusing).
+    static func isConnectionError(_ error: Error) -> Bool {
+        if error is CancellationError { return true }
+        if let failure = error as? VaultwardenAPI.Failure {
+            switch failure {
+            case .blockedByCloudflare, .noCertificate: return true
+            default: return false
+            }
+        }
+        let code = (error as? URLError)?.code ?? URLError.Code(rawValue: (error as NSError).domain == NSURLErrorDomain ? (error as NSError).code : 0)
+        return [
+            .notConnectedToInternet, .networkConnectionLost, .cannotFindHost, .cannotConnectToHost, .timedOut,
+            .dnsLookupFailed, .secureConnectionFailed, .internationalRoamingOff, .dataNotAllowed,
+            .clientCertificateRejected, .clientCertificateRequired,
+        ].contains(code)
     }
 
     private func wipe() {
@@ -193,7 +277,7 @@ final class VaultService: NSObject, ObservableObject {
         if phase == .unlocked { phase = .locked }
     }
 
-    private func unlock(client: Client, account: StoredAccount, method: InitUserCryptoMethod) async throws {
+    private func unlock(client: Client, account: StoredAccount, method: InitUserCryptoMethod, loadTimeout: TimeInterval? = nil) async throws {
         try await client.crypto().initializeUserCrypto(req: InitUserCryptoRequest(
             userId: account.userId.isEmpty ? nil : account.userId,
             kdfParams: Kdf(model: account.kdf),
@@ -208,9 +292,34 @@ final class VaultService: NSObject, ObservableObject {
             let userKey = try await client.crypto().getUserEncryptionKey()
             try? SecureStore.set(Data(userKey.utf8), for: .userKey)
         }
-        if let cached = VaultCache.load() { try await publish(syncData: cached) }
+        // The vault is only opened with fresh data from the server; nothing is read from the device.
+        do {
+            if let loadTimeout {
+                try await withTimeout(loadTimeout) { try await self.sync() }
+            } else {
+                try await sync()
+            }
+        } catch {
+            wipe()
+            throw Self.isConnectionError(error) ? OfflineFailure() : error
+        }
         VaultSession.shared.markUnlocked()
         phase = .unlocked
+        // The sync above ran before the vault counted as open, so publish the identities now.
+        await CredentialIdentitySync.run()
+    }
+
+    private struct OfflineFailure: LocalizedError {
+        var errorDescription: String? { VaultService.offlineMessage }
+    }
+
+    private func withTimeout(_ seconds: TimeInterval, _ work: @escaping @MainActor () async throws -> Void) async throws {
+        try await withThrowingTaskGroup(of: Void.self) { group in
+            group.addTask { try await work() }
+            group.addTask { try await Task.sleep(nanoseconds: UInt64(seconds * 1_000_000_000)); throw CancellationError() }
+            try await group.next()
+            group.cancelAll()
+        }
     }
 
     // MARK: Sync
@@ -219,29 +328,23 @@ final class VaultService: NSObject, ObservableObject {
         VaultSession.shared.syncing = true
         defer { VaultSession.shared.syncing = false }
         let data = try await api.sync()
-        try VaultCache.save(data)
         try await publish(syncData: data)
         VaultSession.shared.syncStatus = "Aktualisiert " + Date().formatted(date: .omitted, time: .shortened)
         await CredentialIdentitySync.run()
     }
 
-    func syncQuietly(timeout: TimeInterval? = nil) async {
+    /// Refreshes the open vault; if Vaultwarden cannot be reached, the vault is locked.
+    func syncQuietly() async {
         do {
-            if let timeout {
-                try await withThrowingTaskGroup(of: Void.self) { group in
-                    group.addTask { try await self.sync() }
-                    group.addTask { try await Task.sleep(nanoseconds: UInt64(timeout * 1_000_000_000)); throw CancellationError() }
-                    try await group.next()
-                    group.cancelAll()
-                }
-            } else {
-                try await sync()
-            }
-        } catch is CancellationError {
-            VaultSession.shared.syncStatus = "Offline-Daten"
+            try await sync()
         } catch {
-            VaultSession.shared.syncStatus = "Nicht aktualisiert"
-            if phase == .unlocked, (error as? VaultwardenAPI.Failure) != nil { VaultSession.shared.message = error.localizedDescription }
+            guard phase == .unlocked else { return }
+            if Self.isConnectionError(error) {
+                lockForLostConnection()
+            } else {
+                VaultSession.shared.syncStatus = "Nicht aktualisiert"
+                if (error as? VaultwardenAPI.Failure) != nil { VaultSession.shared.message = error.localizedDescription }
+            }
         }
     }
 

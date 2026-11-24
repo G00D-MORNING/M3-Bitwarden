@@ -29,7 +29,7 @@ enum class VaultTimeout(val label: String, val seconds: Long) {
     FifteenMinutes("Nach 15 Minuten", 15 * 60),
     ThirtyMinutes("Nach 30 Minuten", 30 * 60),
     OneHour("Nach 1 Stunde", 60 * 60),
-    OnRestart("Beim App-Neustart", -1),
+    // No "never": the decrypted vault lives only in memory and is always removed again.
 }
 
 enum class VaultSort(val label: String) { Name("Name"), Recent("Zuletzt geändert"), Type("Typ") }
@@ -76,7 +76,7 @@ object AppSettings {
     fun updateShowFavoritesRow(value: Boolean) { showFavoritesRow = value; save("showFavRow", value.toString()) }
     fun updateSort(value: VaultSort) { sort = value; save("sort", value.name) }
 
-    /** For Swift: seconds in background before locking, -1 = only on restart. */
+    /** For Swift: seconds in background before locking. */
     val timeoutSeconds: Long get() = timeout.seconds
 
     private fun <T> load(key: String, parse: (String) -> T): T? =

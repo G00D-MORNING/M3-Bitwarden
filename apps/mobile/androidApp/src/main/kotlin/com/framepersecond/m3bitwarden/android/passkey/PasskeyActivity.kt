@@ -108,7 +108,7 @@ class PasskeyActivity : ComponentActivity() {
         val wasUnlocked = VaultSession.isUnlocked
         Unlock.ensure(this) { ok ->
             if (!ok) {
-                screen = Screen.Failed("Entsperre den Tresor in der App M3 Bitwarden und versuche es dann noch einmal.")
+                screen = Screen.Failed(AndroidVault.get(this).error ?: "Entsperre den Tresor in der App M3 Bitwarden und versuche es dann noch einmal.")
                 return@ensure
             }
             verifiedByUnlock = !wasUnlocked

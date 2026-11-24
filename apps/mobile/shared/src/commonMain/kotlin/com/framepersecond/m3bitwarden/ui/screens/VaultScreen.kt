@@ -300,7 +300,7 @@ private fun Header(state: AppState) {
 @Composable
 private fun StatusChip(state: AppState) {
     val syncing = VaultSession.syncing
-    val failed = VaultSession.syncStatus == "Nicht aktualisiert" || VaultSession.syncStatus == "Offline-Daten"
+    val failed = VaultSession.syncStatus == "Nicht aktualisiert"
     val (bg, fg) = when {
         !state.live -> MaterialTheme.colorScheme.surfaceContainerHighest to MaterialTheme.colorScheme.onSurfaceVariant
         failed -> MaterialTheme.colorScheme.errorContainer to MaterialTheme.colorScheme.onErrorContainer

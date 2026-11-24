@@ -120,22 +120,20 @@ class SecureStore(private val context: Context) {
         if (keyStore.containsAlias(BIO_ALIAS)) keyStore.deleteEntry(BIO_ALIAS)
     }
 
-    // MARK: Encrypted vault cache
+    // MARK: Old vault cache
 
+    /** The encrypted copy of the vault that older versions kept; the vault is no longer stored. */
     private val cacheFile get() = File(context.noBackupFilesDir, "vault-sync.json")
 
-    fun saveCache(json: String) {
-        val tmp = File(cacheFile.parentFile, "vault-sync.json.tmp")
-        tmp.writeText(json)
-        tmp.renameTo(cacheFile)
+    fun removeLeftoverCache() {
+        cacheFile.delete()
+        File(cacheFile.parentFile, "vault-sync.json.tmp").delete()
     }
-
-    fun loadCache(): String? = cacheFile.takeIf { it.exists() }?.readText()
 
     fun clearAll() {
         prefs.edit().clear().apply()
         deleteBiometricKey()
-        cacheFile.delete()
+        removeLeftoverCache()
     }
 
     private companion object {
