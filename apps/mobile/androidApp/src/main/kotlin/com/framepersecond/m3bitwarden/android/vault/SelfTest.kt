@@ -79,6 +79,7 @@ object SelfTest {
         )
         val server = mutableMapOf<String, Cipher>()
         val upload: suspend (EncryptionContext) -> String = { ctx ->
+            check(ctx.toRequestJson().optString("encryptedFor").isNotEmpty()) { "upload body without encryptedFor" }
             val id = ctx.cipher.id ?: UUID.randomUUID().toString()
             server[id] = ctx.cipher.copy(id = id)
             id

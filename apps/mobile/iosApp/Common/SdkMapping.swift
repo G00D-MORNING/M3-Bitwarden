@@ -170,6 +170,13 @@ extension BitwardenSdk.Kdf {
 // MARK: SDK (encrypted) → request body
 
 extension CipherRequestModel {
+    /// The body for saving what the SDK encrypted, including who it is encrypted for.
+    init(context: EncryptionContext) {
+        self.init(cipher: context.cipher)
+        encryptedFor = context.encryptedFor
+        encryptedByKeyId = context.encryptedByKeyId
+    }
+
     init(cipher c: BitwardenSdk.Cipher) {
         self.init(
             type: c.type.serverValue,
@@ -212,7 +219,9 @@ extension CipherRequestModel {
             sshKey: c.sshKey.map { SshKeyModel(privateKey: $0.privateKey, publicKey: $0.publicKey, keyFingerprint: $0.fingerprint) },
             fields: c.fields?.map { FieldModel(name: $0.name, value: $0.value, type: $0.type.serverValue, linkedId: $0.linkedId) },
             passwordHistory: c.passwordHistory?.map { PasswordHistoryModel(password: $0.password, lastUsedDate: $0.lastUsedDate) },
-            lastKnownRevisionDate: c.id == nil ? nil : c.revisionDate
+            lastKnownRevisionDate: c.id == nil ? nil : c.revisionDate,
+            encryptedFor: nil,
+            encryptedByKeyId: nil
         )
     }
 }

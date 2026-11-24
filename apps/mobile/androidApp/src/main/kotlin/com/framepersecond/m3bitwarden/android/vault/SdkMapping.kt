@@ -9,6 +9,7 @@ import com.bitwarden.vault.CipherPermissions
 import com.bitwarden.vault.CipherRepromptType
 import com.bitwarden.vault.CipherType
 import com.bitwarden.vault.CipherView
+import com.bitwarden.vault.EncryptionContext
 import com.bitwarden.vault.Fido2Credential
 import com.bitwarden.vault.Field
 import com.bitwarden.vault.FieldType
@@ -153,6 +154,13 @@ private fun fieldType(server: Int) = when (server) {
 private fun uriMatch(server: Int) = UriMatchType.entries.firstOrNull { it.value.toInt() == server }
 
 // MARK: SDK (encrypted) → request body
+
+/**
+ * The body for saving what the SDK encrypted, including who it is encrypted for: Vaultwarden 1.37
+ * (like the Bitwarden server since 2025.6) rejects every create and update without `encryptedFor`.
+ */
+fun EncryptionContext.toRequestJson(): JSONObject =
+    cipher.toRequestJson().put("encryptedFor", encryptedFor).putOpt("encryptedByKeyId", encryptedByKeyId)
 
 fun Cipher.toRequestJson(): JSONObject = JSONObject().apply {
     put("type", type.serverValue())

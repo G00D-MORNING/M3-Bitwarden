@@ -545,7 +545,7 @@ extension VaultService: VaultBackend {
                 view = .new(from: item, folderId: serverFolderId(item.folderId))
             }
             let context = try await client.vault().ciphers().encrypt(cipherView: view)
-            let body = CipherRequestModel(cipher: context.cipher)
+            let body = CipherRequestModel(context: context)
             if let serverId, decrypted[serverId] != nil {
                 _ = try await api.updateCipher(id: serverId, body)
             } else {

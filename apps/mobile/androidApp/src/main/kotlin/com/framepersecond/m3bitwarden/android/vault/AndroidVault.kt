@@ -505,7 +505,7 @@ class AndroidVault private constructor(private val context: Context) : VaultBack
 
     /** Uploads a login with a new or changed passkey and returns its server id. */
     private suspend fun uploadPasskey(context: EncryptionContext): String {
-        val body = context.cipher.toRequestJson()
+        val body = context.toRequestJson()
         val id = context.cipher.id
         val saved = try {
             if (id != null) api.updateCipher(id, body) else api.createCipher(body)
@@ -525,7 +525,7 @@ class AndroidVault private constructor(private val context: Context) : VaultBack
             val original = serverId?.let { decrypted[it] }
             val view = original?.applying(item, serverFolderId(item.folderId)) ?: newCipherView(item, serverFolderId(item.folderId))
             val context = client.vault().ciphers().encrypt(view)
-            val body = context.cipher.toRequestJson()
+            val body = context.toRequestJson()
             if (serverId != null && original != null) {
                 api.updateCipher(serverId, body)
             } else {

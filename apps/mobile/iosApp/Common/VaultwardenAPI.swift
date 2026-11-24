@@ -162,10 +162,10 @@ final class VaultwardenAPI {
     private static func describe(_ req: URLRequest, message: String, data: Data) -> String {
         if !message.isEmpty { return message }
         let path = req.url.map { url in url.path.replacingOccurrences(of: M3BConfig.serverURL.path, with: "") } ?? ""
-        let text = String(decoding: data.prefix(400), as: UTF8.self)
+        let text = String(decoding: data.prefix(2000), as: UTF8.self)
             .replacingOccurrences(of: "<[^>]+>", with: " ", options: .regularExpression)
             .split(whereSeparator: \.isWhitespace).joined(separator: " ")
-        return "\(req.httpMethod ?? "") \(path)" + (text.isEmpty ? "" : " – \(text.prefix(160))")
+        return "\(req.httpMethod ?? "") \(path)" + (text.isEmpty ? "" : " – \(text.prefix(400))")
     }
 
     private func send<T: Decodable>(json: [String: Any], to url: URL, auth: Bool) async throws -> T {

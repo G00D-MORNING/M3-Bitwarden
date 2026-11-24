@@ -3,6 +3,8 @@
 
     <!-- Only for Digital Asset Links checks (public assetlinks.json files); vault data never leaves the tunnel. -->
     <uses-permission android:name="android.permission.INTERNET" />
+    <!-- Locks the vault when the connection to Vaultwarden is lost. -->
+    <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
     <uses-permission android:name="android.permission.USE_BIOMETRIC" />
 
     <!-- The autofill service must read the signing certificate of whichever app asks to be filled

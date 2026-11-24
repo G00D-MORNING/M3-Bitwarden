@@ -299,4 +299,8 @@ struct CipherRequestModel: Encodable {
     var fields: [FieldModel]?
     var passwordHistory: [PasswordHistoryModel]?
     var lastKnownRevisionDate: Date?
+    /// User the item is encrypted for. Required by Vaultwarden 1.37 (like the Bitwarden server
+    /// since 2025.6): without it every create and update is rejected with 422.
+    var encryptedFor: String?
+    var encryptedByKeyId: String?
 }

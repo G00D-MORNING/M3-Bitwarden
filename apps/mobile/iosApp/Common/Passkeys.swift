@@ -187,13 +187,47 @@ private final class PasskeySession: Fido2UserInterface, Fido2CredentialStore, @u
     }
 }
 
-/// Passkey failures in the device log (Console, subsystem com.framepersecond.m3bitwarden), without
-/// any key or vault data: only the operation and the error text.
+/// Passkey failures in the device log (Console, subsystem com.framepersecond.m3bitwarden) and in
+/// `passkey-diagnostics.txt` in the app group, without any key or vault data: the operation, the
+/// error text and, for uploads, the structure of the request (field names, value types, lengths).
 enum PasskeyLog {
     private static let log = Logger(subsystem: "com.framepersecond.m3bitwarden", category: "passkey")
 
-    static func failure(_ operation: String, _ error: Error) {
+    static func failure(_ operation: String, _ error: Error, detail: String = "") {
         log.error("passkey \(operation, privacy: .public) failed: \(describe(error), privacy: .public)")
+        let line = "\(ISO8601DateFormatter().string(from: Date())) \(operation): \(describe(error))\(detail.isEmpty ? "" : "\n  " + detail)\n"
+        let url = PasskeyLog.fileURL
+        let old = (try? String(contentsOf: url, encoding: .utf8)).map { String($0.suffix(20_000)) } ?? ""
+        try? (old + line).write(to: url, atomically: true, encoding: .utf8)
+    }
+
+    static func note(_ text: String) {
+        let url = fileURL
+        let old = (try? String(contentsOf: url, encoding: .utf8)).map { String($0.suffix(20_000)) } ?? ""
+        try? (old + "\(ISO8601DateFormatter().string(from: Date())) \(text)\n").write(to: url, atomically: true, encoding: .utf8)
+    }
+
+    /// In Library/, where Xcode can copy it from a development device.
+    static var fileURL: URL { M3BConfig.containerURL.appendingPathComponent("Library/passkey-diagnostics.txt") }
+
+    /// Field names and value kinds of a JSON body; strings only as length and kind, never content
+    /// (dates and numbers excepted).
+    static func shape(of json: Data) -> String {
+        func walk(_ v: Any) -> String {
+            switch v {
+            case let d as [String: Any]: return "{" + d.keys.sorted().map { "\($0): \(walk(d[$0]!))" }.joined(separator: ", ") + "}"
+            case let a as [Any]: return "[\(a.count)× " + (a.first.map(walk) ?? "") + "]"
+            case let s as String:
+                if JSON.parseDate(s) != nil { return "date(\(s))" }
+                if s.hasPrefix("2."), s.contains("|") { return "enc(\(s.count))" }
+                return "str(\(s.count))"
+            case let n as NSNumber: return CFGetTypeID(n) == CFBooleanGetTypeID() ? "bool(\(n.boolValue))" : "num(\(n))"
+            case is NSNull: return "null"
+            default: return "?"
+            }
+        }
+        guard let object = try? JSONSerialization.jsonObject(with: json) else { return "not JSON" }
+        return walk(object)
     }
 
     static func describe(_ error: Error) -> String {
@@ -349,10 +383,12 @@ extension VaultService {
 
     /// Uploads an encrypted login (new or changed passkey) and returns its server id.
     func uploadPasskey(_ context: EncryptionContext) async throws -> String {
-        let body = CipherRequestModel(cipher: context.cipher)
+        let body = CipherRequestModel(context: context)
         do {
             return try await api.saveCipher(id: context.cipher.id, body)
         } catch {
+            let shape = (try? JSON.encoder.encode(body)).map(PasskeyLog.shape(of:)) ?? ""
+            PasskeyLog.failure(context.cipher.id == nil ? "upload POST" : "upload PUT", error, detail: shape)
             throw PasskeyFailure.upload(PasskeyLog.describe(error))
         }
     }

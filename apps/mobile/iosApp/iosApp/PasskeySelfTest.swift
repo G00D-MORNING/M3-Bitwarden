@@ -44,7 +44,11 @@ enum PasskeySelfTest {
 
         // In-memory "server".
         let server = MemoryServer()
-        let upload: (EncryptionContext) async throws -> String = { context in await server.save(context.cipher) }
+        let upload: (EncryptionContext) async throws -> String = { context in
+            let body = String(decoding: try JSON.encoder.encode(CipherRequestModel(context: context)), as: UTF8.self)
+            guard body.contains("\"encryptedFor\":\"") else { throw Failure("upload body without encryptedFor") }
+            return await server.save(context.cipher)
+        }
 
         // 1. Create a passkey (new login).
         let rpId = "webauthn.io"
