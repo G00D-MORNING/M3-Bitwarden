@@ -79,16 +79,8 @@ fun SectionTitle(text: String, modifier: Modifier = Modifier, trailing: @Composa
 /** Logo tile: the brand's logo in its colors, else the item type's icon in its tonal colors. */
 @Composable
 fun ItemTile(item: VaultItem, size: Dp = 44.dp, corner: Dp = 14.dp, modifier: Modifier = Modifier) {
-    val brand = if (AppSettings.showLogos) Brands.forItem(item) else null
-    val bg = brand?.let { Color(it.bg) } ?: item.type.containerColor
-    val fg = brand?.let { Color(it.fg) } ?: item.type.contentColor
-    Box(modifier.size(size).clip(RoundedCornerShape(corner)).background(bg), contentAlignment = Alignment.Center) {
-        if (brand != null) {
-            Icon(Brands.icon(brand), null, tint = fg, modifier = Modifier.size(size / 2))
-        } else {
-            Icon(item.type.icon, null, tint = fg, modifier = Modifier.size(size / 2))
-        }
-    }
+    // Website icon, bundled logo or first letter, all in the same rounded square.
+    Box(modifier.size(size), contentAlignment = Alignment.Center) { com.framepersecond.m3bitwarden.ui.brands.SiteMark(item, size) }
 }
 
 /** A Material shape that turns slowly, the prototype's "alive" emblem. */

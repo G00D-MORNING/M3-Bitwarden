@@ -37,6 +37,12 @@ interface VaultBackend {
 
     /** Signs out and removes every account trace from this device. */
     fun logout()
+
+    /**
+     * Website icon for [host] from the user's own Vaultwarden (its icon service), or null.
+     * [onResult] runs on the main thread. Icons are kept in memory only.
+     */
+    fun loadIcon(host: String, onResult: (ByteArray?) -> Unit)
 }
 
 /**
@@ -111,6 +117,7 @@ object VaultSession {
         val wasUnlocked = isUnlocked
         isUnlocked = false
         if (backend != null) repository.replaceAll(emptyList())
+        com.framepersecond.m3bitwarden.ui.brands.SiteIcons.clear()
         if (wasUnlocked || backend != null) lockListeners.forEach { it() }
     }
 

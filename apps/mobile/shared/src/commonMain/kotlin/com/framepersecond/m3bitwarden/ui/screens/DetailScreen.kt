@@ -343,16 +343,8 @@ private fun FolderMenu(state: AppState, item: VaultItem, open: Boolean, onClose:
 @Composable
 private fun Header(item: VaultItem, state: AppState, onFolder: () -> Unit) {
     Column(Modifier.fillMaxWidth().padding(top = 8.dp, bottom = 4.dp), horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(12.dp)) {
-        val brand = if (AppSettings.showLogos) Brands.forItem(item) else null
         SpinningShape(item.type.polygon, item.type.containerColor, 128.dp, modifier = Modifier.hero("${state.heroSource}-tile-${item.id}")) {
-            if (brand != null) {
-                Box(
-                    Modifier.size(72.dp).shadow(6.dp, RoundedCornerShape(24.dp)).clip(RoundedCornerShape(24.dp)).background(Color(brand.bg)),
-                    contentAlignment = Alignment.Center,
-                ) { Icon(Brands.icon(brand), null, tint = Color(brand.fg), modifier = Modifier.size(38.dp)) }
-            } else {
-                Text(item.name.trim().firstOrNull()?.uppercase() ?: "?", style = MaterialTheme.typography.displayMediumEmphasized, color = item.type.contentColor)
-            }
+            Box(Modifier.size(72.dp).shadow(6.dp, RoundedCornerShape(18.dp))) { com.framepersecond.m3bitwarden.ui.brands.SiteMark(item, 72.dp) }
         }
         Text(item.name, style = MaterialTheme.typography.headlineMediumEmphasized, textAlign = TextAlign.Center, modifier = Modifier.hero("${state.heroSource}-name-${item.id}"))
         ConnectedGroup(

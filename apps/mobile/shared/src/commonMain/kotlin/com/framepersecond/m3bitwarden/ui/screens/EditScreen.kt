@@ -316,14 +316,11 @@ fun EditScreen(state: AppState, id: String?, type: ItemType) {
 @Composable
 private fun EditHeader(draft: VaultItem, isNew: Boolean) {
     Row(Modifier.padding(start = 4.dp, end = 4.dp, top = 4.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(16.dp)) {
-        val brand = if (AppSettings.showLogos) Brands.forItem(draft) else null
         SpinningShape(draft.type.polygon, draft.type.containerColor, 80.dp) {
-            if (brand != null) {
-                Box(Modifier.size(48.dp).clip(RoundedCornerShape(16.dp)).background(Color(brand.bg)), contentAlignment = Alignment.Center) {
-                    Icon(Brands.icon(brand), null, tint = Color(brand.fg), modifier = Modifier.size(26.dp))
-                }
-            } else {
+            if (draft.name.isBlank() && draft.login?.allUris.isNullOrEmpty()) {
                 Icon(draft.type.icon, null, tint = draft.type.contentColor, modifier = Modifier.size(32.dp))
+            } else {
+                com.framepersecond.m3bitwarden.ui.brands.SiteMark(draft, 48.dp)
             }
         }
         Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
@@ -366,11 +363,17 @@ private fun Websites(draft: VaultItem, onChange: (VaultItem) -> Unit) {
             uris.forEachIndexed { index, uri ->
                 Row(verticalAlignment = Alignment.Top, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
                     val brand = if (AppSettings.showLogos) Brands.forUri(uri) else null
+                    val site = com.framepersecond.m3bitwarden.ui.brands.SiteIcons.icon(com.framepersecond.m3bitwarden.ui.brands.SiteIcons.hostOf(uri))
                     Box(
-                        Modifier.padding(top = 6.dp).size(44.dp).clip(RoundedCornerShape(14.dp)).background(brand?.let { Color(it.bg) } ?: MaterialTheme.colorScheme.surfaceContainerHighest),
+                        Modifier.padding(top = 6.dp).size(44.dp).clip(RoundedCornerShape(11.dp))
+                            .background(if (site != null) Color.White else brand?.let { Color(it.bg) } ?: MaterialTheme.colorScheme.surfaceContainerHighest),
                         contentAlignment = Alignment.Center,
                     ) {
-                        Icon(brand?.let { Brands.icon(it) } ?: Symbols.Language, null, tint = brand?.let { Color(it.fg) } ?: MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.size(22.dp))
+                        if (site != null) {
+                            androidx.compose.foundation.Image(site, null, Modifier.size(36.dp).clip(RoundedCornerShape(7.dp)))
+                        } else {
+                            Icon(brand?.let { Brands.icon(it) } ?: Symbols.Language, null, tint = brand?.let { Color(it.fg) } ?: MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.size(22.dp))
+                        }
                     }
                     TextInput(
                         if (uris.size > 1) "Website ${index + 1}" else "Website",

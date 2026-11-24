@@ -207,7 +207,10 @@ struct SignInView: View {
 
 struct UnlockView: View {
     @ObservedObject var service: VaultService
+    @Environment(\.scenePhase) private var scenePhase
     @State private var password = ""
+    /// Face ID was offered since the app last came to the foreground. The Face ID sheet itself
+    /// makes the app briefly inactive, so only a real trip to the background allows another try.
     @State private var askedBiometrics = false
 
     var body: some View {
@@ -227,11 +230,21 @@ struct UnlockView: View {
                 .buttonStyle(M3ButtonStyle(kind: .text, height: 44))
                 .padding(.top, 24)
         }
-        .task {
-            guard !askedBiometrics, service.canUseBiometrics else { return }
-            askedBiometrics = true
-            await service.unlockWithBiometrics()
+        .task { await offerBiometrics() }
+        .onChange(of: scenePhase) { _, phase in
+            switch phase {
+            case .background: askedBiometrics = false
+            case .active: Task { await offerBiometrics() }
+            default: break
+            }
         }
+    }
+
+    /// Asks for Face ID by itself whenever the locked app is opened, without a tap first.
+    private func offerBiometrics() async {
+        guard !askedBiometrics, scenePhase == .active, service.phase == .locked, service.canUseBiometrics, !service.busy else { return }
+        askedBiometrics = true
+        await service.unlockWithBiometrics()
     }
 
     private func unlock() {

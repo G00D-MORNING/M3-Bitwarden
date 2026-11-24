@@ -28,7 +28,9 @@ struct VaultHost: View {
 /// Floating controls in Liquid Glass with Material 3 Expressive behaviour:
 /// - tab bar: the selected tab grows into a pill with its label; scrolling down shrinks the bar
 ///   to the selected tab,
-/// - new-item button: a rounded square that turns round and spills the item types out of itself,
+/// - new-item button: a rounded square that turns round while the item types fly out of its
+///   corner one after another (as the prototype's M3 Expressive FAB menu: each grows from 60 %,
+///   rises 24 pt and fades in, 30 ms apart, nearest first; closing runs the other way),
 /// - item toolbar: copy/open actions plus the edit button. Bar and button morph into each other
 ///   when an item opens, because they share their glass identities.
 @available(iOS 26, *)
@@ -36,6 +38,10 @@ struct GlassChrome: View {
     @ObservedObject var model: ChromeModel
     @Namespace private var glass
     @State private var menuOpen = false
+    /// The menu items are on screen (also while they fly back in).
+    @State private var menuMounted = false
+    /// The items are out; set one frame after mounting so they animate in from the button.
+    @State private var itemsOut = false
     @State private var actionTaps = 0
 
     private let spring = Animation.spring(response: 0.42, dampingFraction: 0.78)
@@ -47,7 +53,7 @@ struct GlassChrome: View {
             if menuOpen {
                 Color.black.opacity(0.18)
                     .ignoresSafeArea()
-                    .onTapGesture { withAnimation(spring) { menuOpen = false } }
+                    .onTapGesture { closeMenu() }
                     .allowsHitTesting(menuOpen)
                     .transition(.opacity)
             }
@@ -68,8 +74,8 @@ struct GlassChrome: View {
         .ignoresSafeArea(.keyboard)
         .animation(spring, value: snap)
         .animation(spring, value: menuOpen)
-        .onChange(of: snap?.onTabs) { _, onTabs in if onTabs != true { menuOpen = false } }
-        .onChange(of: snap?.tab) { _, _ in menuOpen = false }
+        .onChange(of: snap?.onTabs) { _, onTabs in if onTabs != true { closeMenu(animated: false) } }
+        .onChange(of: snap?.tab) { _, _ in closeMenu(animated: false) }
         .sensoryFeedback(.selection, trigger: snap?.tab)
         .sensoryFeedback(.impact(weight: .light), trigger: menuOpen)
         .sensoryFeedback(.success, trigger: actionTaps)
@@ -92,11 +98,14 @@ struct GlassChrome: View {
     private func tabsLayer(_ snap: ChromeSnapshot) -> some View {
         let selected = Int(snap.tab)
         let compact = snap.compact && !menuOpen
+        let items = snap.itemTypes
         return VStack(alignment: .trailing, spacing: 12) {
-            if menuOpen {
-                ForEach(snap.itemTypes, id: \.id) { item in
+            if menuMounted {
+                ForEach(Array(items.enumerated()), id: \.element.id) { index, item in
+                    // Nearest to the button first when opening, top first when closing.
+                    let delay = Double(itemsOut ? items.count - 1 - index : index) * 0.03
                     Button {
-                        menuOpen = false
+                        closeMenu()
                         NativeChrome.shared.createItem(id: item.id)
                     } label: {
                         Label(item.label, systemImage: item.symbol)
@@ -108,7 +117,11 @@ struct GlassChrome: View {
                     .buttonStyle(.plain)
                     .foregroundStyle(M3.onPrimaryContainer)
                     .glassEffect(.regular.tint(M3.primaryContainer.opacity(0.75)).interactive(), in: .capsule)
-                    .glassEffectID("new-\(item.id)", in: glass)
+                    .scaleEffect(itemsOut ? 1 : 0.6, anchor: .bottomTrailing)
+                    .offset(y: itemsOut ? 0 : 24)
+                    .opacity(itemsOut ? 1 : 0)
+                    .animation(Self.itemSpring.delay(delay), value: itemsOut)
+                    .allowsHitTesting(itemsOut)
                 }
             }
             HStack(alignment: .bottom, spacing: 12) {
@@ -157,9 +170,30 @@ struct GlassChrome: View {
         .accessibilityAddTraits(selected ? .isSelected : [])
     }
 
+    /// M3 Expressive "fast spatial" spring: quick, with a little overshoot.
+    private static let itemSpring = Animation.spring(response: 0.36, dampingFraction: 0.68)
+
+    private func openMenu() {
+        menuMounted = true
+        withAnimation(spring) { menuOpen = true }
+        // One frame later, so the items start at the button and fly out.
+        DispatchQueue.main.async { itemsOut = true }
+    }
+
+    private func closeMenu(animated: Bool = true) {
+        guard menuMounted || menuOpen else { return }
+        withAnimation(animated ? spring : nil) { menuOpen = false }
+        itemsOut = false
+        guard animated else { menuMounted = false; return }
+        let last = Double(max(0, (model.snap?.itemTypes.count ?? 1) - 1)) * 0.03
+        DispatchQueue.main.asyncAfter(deadline: .now() + last + 0.3) {
+            if !menuOpen { menuMounted = false }
+        }
+    }
+
     private var fab: some View {
         Button {
-            menuOpen.toggle()
+            menuOpen ? closeMenu() : openMenu()
         } label: {
             Image(systemName: "plus")
                 .font(.system(size: 24, weight: .semibold))

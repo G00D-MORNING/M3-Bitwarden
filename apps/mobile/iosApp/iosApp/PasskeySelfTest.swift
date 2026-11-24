@@ -131,6 +131,9 @@ enum PasskeySelfTest {
         let loginView = try await client.vault().ciphers().decrypt(cipher: await server.cipher(loginId)!)
         let engine2 = PasskeyEngine(client: client, decrypted: [cipherId: view, loginId: loginView], encrypted: [], upload: upload)
         try check(engine2.targets(rpId: "example.org").map(\.cipherId) == [loginId], "existing login offered for a new passkey")
+        try check(engine2.targets(rpId: "example.org", account: "Anna").first?.match == .same, "login with the same account marked")
+        try check(PasskeyTarget.match("+49 170 1234567", "01701234567") == .same && PasskeyTarget.match("anna@mail.de", "anna") == .similar
+            && PasskeyTarget.match("bob@mail.de", "anna@mail.de") == .none, "account matching: phone, e-mail part, different")
         try check(engine2.targets(rpId: rpId).isEmpty, "login that already has a passkey is not offered")
         let (_, savedInto) = try await engine2.registration(PasskeyRegistrationRequest(
             rpId: "example.org", rpName: nil, userName: "anna", userDisplayName: "anna", userHandle: random32(),

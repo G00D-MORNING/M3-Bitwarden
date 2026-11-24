@@ -487,6 +487,13 @@ class AndroidVault private constructor(private val context: Context) : VaultBack
 
     override fun logout() = signOut()
 
+    override fun loadIcon(host: String, onResult: (ByteArray?) -> Unit) {
+        scope.launch {
+            val bytes = runCatching { api.icon(host) }.getOrNull()
+            onResult(bytes)
+        }
+    }
+
     // MARK: Writes
 
     private fun serverFolderId(id: String?): String? = when {

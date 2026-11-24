@@ -521,6 +521,13 @@ extension VaultService: VaultBackend {
         MainActor.assumeIsolated { biometricsWanted && canUseBiometrics }
     }
 
+    nonisolated func loadIcon(host: String, onResult: @escaping (KotlinByteArray?) -> Void) {
+        Task { @MainActor in
+            let data = await self.api.icon(host: host)
+            onResult(data.map(\.kotlinBytes))
+        }
+    }
+
     nonisolated func logout() {
         Task { @MainActor in self.signOut() }
     }
@@ -564,5 +571,13 @@ extension VaultService: VaultBackend {
 final class SdkTokenProvider: ClientManagedTokens, @unchecked Sendable {
     func getAccessToken() async -> String? {
         try? await TokenStore.validAccessToken()
+    }
+}
+
+private extension Data {
+    var kotlinBytes: KotlinByteArray {
+        let array = KotlinByteArray(size: Int32(count))
+        for (index, byte) in enumerated() { array.set(index: Int32(index), value: Int8(bitPattern: byte)) }
+        return array
     }
 }

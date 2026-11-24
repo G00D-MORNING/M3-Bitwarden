@@ -83,6 +83,8 @@ class M3BCredentialProviderService : CredentialProviderService() {
         fun entries(context: Context, request: BeginGetCredentialRequest): BeginGetCredentialResponse {
             val engine = AndroidVault.get(context).passkeyEngine() ?: return BeginGetCredentialResponse()
             val icon = Icon.createWithResource(context, R.mipmap.ic_launcher)
+            // Android lists the passkey used last first.
+            val usage = com.framepersecond.m3bitwarden.android.autofill.PrefsAutofillStore(context).usage()
             val entries = request.beginGetCredentialOptions.filterIsInstance<BeginGetPublicKeyCredentialOption>().flatMap { option ->
                 val json = runCatching { JSONObject(option.requestJson) }.getOrNull() ?: return@flatMap emptyList()
                 val rpId = json.optString("rpId")
@@ -100,6 +102,7 @@ class M3BCredentialProviderService : CredentialProviderService() {
                     PublicKeyCredentialEntry.Builder(context, p.userName.ifEmpty { p.itemName }, intent, option)
                         .setDisplayName(p.itemName)
                         .setIcon(icon)
+                        .setLastUsedTime(usage[p.cipherId]?.first?.let(java.time.Instant::ofEpochMilli))
                         .build()
                 }
             }

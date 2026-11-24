@@ -14,11 +14,14 @@ enum CredentialIdentitySync {
         let state = await store.state()
         guard state.isEnabled else { return }
         var identities: [ASCredentialIdentity] = CredentialProviderBridge.shared.identities().map {
-            ASPasswordCredentialIdentity(
+            let identity = ASPasswordCredentialIdentity(
                 serviceIdentifier: ASCredentialServiceIdentifier(identifier: $0.domain, type: .domain),
                 user: $0.user,
                 recordIdentifier: $0.recordId
             )
+            // The login picked last for a site comes first above the keyboard.
+            identity.rank = Int($0.rank)
+            return identity
         }
         identities += VaultService.shared.passkeys().map(passkeyIdentity)
         try? await store.replaceCredentialIdentities(identities)
@@ -37,12 +40,14 @@ enum CredentialIdentitySync {
     }
 
     private static func passkeyIdentity(_ p: PasskeyEntry) -> ASPasskeyCredentialIdentity {
-        ASPasskeyCredentialIdentity(
+        let identity = ASPasskeyCredentialIdentity(
             relyingPartyIdentifier: p.rpId,
             userName: p.userName.isEmpty ? p.itemName : p.userName,
             credentialID: p.credentialId,
             userHandle: p.userHandle,
             recordIdentifier: p.cipherId
         )
+        identity.rank = Int(CredentialProviderBridge.shared.rank(id: p.cipherId))
+        return identity
     }
 }

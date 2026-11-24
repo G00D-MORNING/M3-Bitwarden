@@ -121,6 +121,18 @@ final class VaultwardenAPI {
         try await send(encodable: ["name": name], to: M3BConfig.apiURL.appendingPathComponent("folders"), method: "POST")
     }
 
+    /// Website icon from the server's icon service (`/icons/<host>/icon.png`), or nil.
+    func icon(host: String) async -> Data? {
+        guard host.range(of: #"^[a-z0-9.-]+$"#, options: .regularExpression) != nil else { return nil }
+        let url = M3BConfig.serverURL.appendingPathComponent("icons").appendingPathComponent(host).appendingPathComponent("icon.png")
+        var req = URLRequest(url: url)
+        req.timeoutInterval = 15
+        guard let (data, response) = try? await perform(req), response.statusCode == 200,
+              (response.value(forHTTPHeaderField: "Content-Type") ?? "image").hasPrefix("image"), data.count < 300_000
+        else { return nil }
+        return data
+    }
+
     /// Moves the item to the trash (restorable in the web vault).
     func softDeleteCipher(id: String) async throws {
         _ = try await raw(request(M3BConfig.apiURL.appendingPathComponent("ciphers/\(id)/delete"), method: "PUT"), auth: true)

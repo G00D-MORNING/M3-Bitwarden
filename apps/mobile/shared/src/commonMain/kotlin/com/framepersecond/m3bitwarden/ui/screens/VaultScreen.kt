@@ -55,6 +55,8 @@ import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
+import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.Button
 import androidx.compose.material3.FilledTonalButton
 import androidx.compose.material3.FloatingActionButtonMenu
 import androidx.compose.material3.FloatingActionButtonMenuItem
@@ -468,7 +470,8 @@ private fun SecuritySheet(report: SecurityReport, state: AppState, onClose: () -
             if (report.findings.isEmpty()) {
                 Text("Alles in Ordnung: keine schwachen oder mehrfach verwendeten Passwörter.", style = MaterialTheme.typography.bodyLarge, modifier = Modifier.padding(8.dp))
             }
-            val rows = report.findings.flatMap { f -> f.issues.map { f to it } }
+            if (report.duplicates.isNotEmpty()) DuplicatesSection(report.duplicates, state)
+            val rows = report.findings.flatMap { f -> f.issues.filter { it.kind != com.framepersecond.m3bitwarden.security.IssueKind.Duplicate }.map { f to it } }
             LazyColumn(Modifier.height((rows.size * 74).coerceAtMost(420).dp), verticalArrangement = Arrangement.spacedBy(2.dp)) {
                 itemsIndexed(rows) { i, (finding, issue) ->
                     ListRow(
@@ -479,6 +482,7 @@ private fun SecuritySheet(report: SecurityReport, state: AppState, onClose: () -
                             com.framepersecond.m3bitwarden.security.IssueKind.Reused -> Symbols.ContentCopy
                             com.framepersecond.m3bitwarden.security.IssueKind.Weak -> Symbols.Warning
                             com.framepersecond.m3bitwarden.security.IssueKind.TwoFactor -> Symbols.Passkey
+                            com.framepersecond.m3bitwarden.security.IssueKind.Duplicate -> Symbols.ContentCopy
                         },
                         iconBg = if (issue.serious) MaterialTheme.colorScheme.errorContainer else MaterialTheme.colorScheme.tertiaryContainer,
                         iconTint = if (issue.serious) MaterialTheme.colorScheme.onErrorContainer else MaterialTheme.colorScheme.onTertiaryContainer,
@@ -490,20 +494,78 @@ private fun SecuritySheet(report: SecurityReport, state: AppState, onClose: () -
     }
 }
 
+/**
+ * Exactly identical logins (same username, password and websites/apps), each with "merge": the
+ * fullest one stays and takes over websites, TOTP, notes and fields of the others, which go to
+ * the trash in Vaultwarden (restorable there).
+ */
+@Composable
+private fun DuplicatesSection(groups: List<com.framepersecond.m3bitwarden.security.DuplicateGroup>, state: AppState) {
+    var confirm by remember { mutableStateOf<List<com.framepersecond.m3bitwarden.security.DuplicateGroup>?>(null) }
+    val mergeable = groups.filter { it.mergeable }
+    Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+        Row(Modifier.fillMaxWidth().padding(horizontal = 8.dp), verticalAlignment = Alignment.CenterVertically) {
+            Column(Modifier.weight(1f)) {
+                Text("Doppelte Einträge", style = MaterialTheme.typography.titleMediumEmphasized)
+                Text("Gleicher Benutzer, gleiches Passwort, gleiche Website oder App", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+            }
+            if (mergeable.size > 1) TextButton(onClick = { confirm = mergeable }) { Text("Alle zusammenführen") }
+        }
+        Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
+            groups.forEachIndexed { i, g ->
+                ListRow(
+                    headline = g.keeper.name,
+                    shape = segmentShape(i, groups.size),
+                    supporting = "${g.all.size}× · ${g.keeper.login?.username.orEmpty().ifEmpty { "ohne Benutzer" }}" +
+                        if (g.mergeable) "" else " · nicht automatisch (geteilt oder mehrere Passkeys)",
+                    icon = Symbols.ContentCopy,
+                    iconBg = MaterialTheme.colorScheme.tertiaryContainer,
+                    iconTint = MaterialTheme.colorScheme.onTertiaryContainer,
+                    onClick = { state.openItem(g.keeper.id, "sheet") },
+                ) {
+                    if (g.mergeable) FilledTonalButton(onClick = { confirm = listOf(g) }) { Text("Zusammenführen") }
+                }
+            }
+        }
+    }
+    confirm?.let { chosen ->
+        val count = chosen.sumOf { it.others.size }
+        AlertDialog(
+            onDismissRequest = { confirm = null },
+            icon = { HideNativeChrome(); Icon(Symbols.ContentCopy, null) },
+            title = { Text(if (chosen.size == 1) "${chosen[0].keeper.name} zusammenführen?" else "${chosen.size} Gruppen zusammenführen?") },
+            text = {
+                Text(
+                    "Je Gruppe bleibt ein Eintrag und bekommt Websites, Einmal-Codes, Notizen und Felder der anderen. " +
+                        "${if (count == 1) "Der andere Eintrag kommt" else "Die $count anderen Einträge kommen"} in den Papierkorb von Vaultwarden und lassen sich dort wiederherstellen.",
+                )
+            },
+            confirmButton = {
+                Button(onClick = {
+                    chosen.forEach { g ->
+                        state.vault.save(g.merged())
+                        g.others.forEach { state.vault.delete(it.id) }
+                    }
+                    confirm = null
+                }) { Text("Zusammenführen") }
+            },
+            dismissButton = { TextButton(onClick = { confirm = null }) { Text("Abbrechen") } },
+        )
+    }
+}
+
 @Composable
 private fun Favorites(favorites: List<VaultItem>, state: AppState) {
     Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
         SectionTitle("Favoriten")
         LazyRow(horizontalArrangement = Arrangement.spacedBy(10.dp), contentPadding = PaddingValues(horizontal = 0.dp)) {
             items(favorites, key = { it.id }) { item ->
-                val brand = if (AppSettings.showLogos) Brands.forItem(item) else null
-                val bg = brand?.let { Color(it.bg) } ?: item.type.containerColor
-                val fg = brand?.let { Color(it.fg) } ?: item.type.contentColor
+                val fg = MaterialTheme.colorScheme.onSurface
                 Column(
-                    Modifier.hero("fav-tile-${item.id}").width(132.dp).height(152.dp).clip(RoundedCornerShape(32.dp)).background(bg).clickable { state.openItem(item.id, "fav") }.padding(16.dp),
+                    Modifier.hero("fav-tile-${item.id}").width(132.dp).height(152.dp).clip(RoundedCornerShape(32.dp)).background(MaterialTheme.colorScheme.surfaceContainerHigh).clickable { state.openItem(item.id, "fav") }.padding(16.dp),
                     verticalArrangement = Arrangement.SpaceBetween,
                 ) {
-                    Icon(brand?.let { Brands.icon(it) } ?: item.type.icon, null, tint = fg, modifier = Modifier.size(36.dp))
+                    com.framepersecond.m3bitwarden.ui.brands.SiteMark(item, 44.dp)
                     Column {
                         Text(item.name, style = MaterialTheme.typography.titleMediumEmphasized, color = fg, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.hero("fav-name-${item.id}"))
                         Text(listSubtitle(item, false), style = MaterialTheme.typography.bodySmall, color = fg.copy(alpha = 0.85f), maxLines = 1, overflow = TextOverflow.Ellipsis)

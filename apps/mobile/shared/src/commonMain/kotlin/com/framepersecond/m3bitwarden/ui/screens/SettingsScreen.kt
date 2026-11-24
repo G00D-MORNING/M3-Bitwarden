@@ -156,9 +156,9 @@ fun SettingsScreen(state: AppState, contentPadding: PaddingValues, platformSetti
                         }
                     }
                 }
-                Text("${Brands.all.size} Logos sind in der App enthalten. Es wird nichts aus dem Internet geladen.", style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                Text("Website-Symbole kommen über den Icon-Dienst deines Vaultwarden (das Gerät spricht nur mit deinem Server) und liegen nur im Arbeitsspeicher. ${Brands.all.size} Markenlogos sind zusätzlich in der App enthalten.", style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
             }
-            SwitchRow("Logos anzeigen", settings.showLogos, segmentShape(1, 2), supporting = "Markenlogos statt Typ-Symbolen", icon = Symbols.Apps) { settings.updateShowLogos(it) }
+            SwitchRow("Logos anzeigen", settings.showLogos, segmentShape(1, 2), supporting = "Website-Symbole statt Anfangsbuchstaben", icon = Symbols.Apps) { settings.updateShowLogos(it) }
         }
 
         Section("Info") {

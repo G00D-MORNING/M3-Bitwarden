@@ -49,7 +49,33 @@ class PasskeyEntry(
 )
 
 /** A login that can take a new passkey (Bitwarden keeps one passkey per login). */
-data class PasskeyTarget(val cipherId: String, val name: String, val userName: String, val host: String)
+data class PasskeyTarget(val cipherId: String, val name: String, val userName: String, val host: String, val match: Match = Match.None) {
+    /** How well the login's username fits the account the site creates the passkey for. */
+    enum class Match { None, Similar, Same }
+
+    companion object {
+        /**
+         * Compares the account a site sends (e-mail, phone number or user name) with a username:
+         * equal ignoring case, or the same phone digits, is [Match.Same]; the same e-mail local part
+         * or one containing the other is [Match.Similar].
+         */
+        fun match(account: String, username: String): Match {
+            val a = account.trim().lowercase()
+            val b = username.trim().lowercase()
+            if (a.isEmpty() || b.isEmpty()) return Match.None
+            if (a == b) return Match.Same
+            val da = a.filter(Char::isDigit)
+            val db = b.filter(Char::isDigit)
+            fun phoneLike(s: String, d: String) = d.length >= 6 && d.length * 10 >= s.count { !it.isWhitespace() } * 7
+            if (phoneLike(a, da) && phoneLike(b, db) && da.takeLast(9) == db.takeLast(9)) return Match.Same
+            val la = a.substringBefore('@')
+            val lb = b.substringBefore('@')
+            if (la == lb && la.length >= 3) return Match.Similar
+            if (minOf(a.length, b.length) >= 4 && (a.contains(b) || b.contains(a))) return Match.Similar
+            return Match.None
+        }
+    }
+}
 
 class PasskeyException(message: String) : Exception(message)
 
@@ -87,8 +113,8 @@ class PasskeyEngine(
         }
     }
 
-    /** Logins for [rpId] that have no passkey yet. */
-    fun targets(rpId: String): List<PasskeyTarget> {
+    /** Logins for [rpId] that have no passkey yet; those whose username fits [account] first. */
+    fun targets(rpId: String, account: String = ""): List<PasskeyTarget> {
         val site = rpId.lowercase()
         return decrypted.values.mapNotNull { c ->
             val id = c.id ?: return@mapNotNull null
@@ -96,8 +122,8 @@ class PasskeyEngine(
             if (c.deletedDate != null || !c.edit || !login.fido2Credentials.isNullOrEmpty()) return@mapNotNull null
             val host = login.uris.orEmpty().mapNotNull { u -> u.uri?.let(::hostOf) }
                 .firstOrNull { it == site || it.endsWith(".$site") || site.endsWith(".$it") } ?: return@mapNotNull null
-            PasskeyTarget(id, c.name, login.username.orEmpty(), host)
-        }.sortedBy { it.name.lowercase() }
+            PasskeyTarget(id, c.name, login.username.orEmpty(), host, PasskeyTarget.match(account, login.username.orEmpty()))
+        }.sortedWith(compareByDescending<PasskeyTarget> { it.match }.thenBy { it.name.lowercase() })
     }
 
     /**

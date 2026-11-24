@@ -146,7 +146,9 @@ class PasskeyActivity : ComponentActivity() {
             val engine = AndroidVault.get(this).passkeyEngine() ?: throw PasskeyException("Der Tresor ist gesperrt.")
             val (origin, clientData) = originFor(request.callingAppInfo, rpId, option.clientDataHash)
             verifyUser("Mit Passkey anmelden", rpId)
-            val json = engine.authenticate(origin, option.requestJson, clientData, intent.getStringExtra(EXTRA_CIPHER))
+            val cipherId = intent.getStringExtra(EXTRA_CIPHER)
+            val json = engine.authenticate(origin, option.requestJson, clientData, cipherId)
+            cipherId?.let { com.framepersecond.m3bitwarden.android.autofill.PrefsAutofillStore(this).recordUse(it, System.currentTimeMillis()) }
             Intent().also { PendingIntentHandler.setGetCredentialResponse(it, GetCredentialResponse(PublicKeyCredential(json))) }
         }
     }
@@ -161,7 +163,7 @@ class PasskeyActivity : ComponentActivity() {
         val user = json.optJSONObject("user")?.optString("name").orEmpty()
         val engine = AndroidVault.get(this).passkeyEngine() ?: return cancel()
         title = "Passkey speichern"
-        screen = Screen.Choose(rpId, user, if (rpId.isEmpty()) emptyList() else engine.targets(rpId))
+        screen = Screen.Choose(rpId, user, if (rpId.isEmpty()) emptyList() else engine.targets(rpId, user))
     }
 
     private fun create(cipherId: String?) {
@@ -303,13 +305,36 @@ class PasskeyActivity : ComponentActivity() {
                     }
                 }
             }
-            Button(onClick = { create(null) }, modifier = Modifier.fillMaxWidth().height(56.dp)) { Text("Als neuen Eintrag speichern") }
-            if (s.targets.isNotEmpty()) {
-                Text("Oder zu einem Login hinzufügen", style = MaterialTheme.typography.titleSmall, color = MaterialTheme.colorScheme.primary)
+            val fitting = s.targets.filter { it.match != PasskeyTarget.Match.None }
+            val others = s.targets.filter { it.match == PasskeyTarget.Match.None }
+            fitting.forEach { t ->
+                Surface(
+                    shape = RoundedCornerShape(24.dp),
+                    color = MaterialTheme.colorScheme.primaryContainer,
+                    border = androidx.compose.foundation.BorderStroke(1.5.dp, MaterialTheme.colorScheme.primary),
+                    modifier = Modifier.fillMaxWidth().clickable { create(t.cipherId) },
+                ) {
+                    Column(Modifier.padding(horizontal = 20.dp, vertical = 14.dp)) {
+                        Text(t.name, style = MaterialTheme.typography.bodyLarge, fontWeight = FontWeight.SemiBold, color = MaterialTheme.colorScheme.onPrimaryContainer)
+                        Text(t.userName, style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onPrimaryContainer)
+                        Text(
+                            (if (t.match == PasskeyTarget.Match.Same) "Gleiches Konto · " else "Ähnliches Konto · ") + t.host + " · Hinzufügen",
+                            style = MaterialTheme.typography.labelLarge, color = MaterialTheme.colorScheme.primary,
+                        )
+                    }
+                }
+            }
+            if (fitting.isEmpty()) {
+                Button(onClick = { create(null) }, modifier = Modifier.fillMaxWidth().height(56.dp)) { Text("Als neuen Eintrag speichern") }
+            } else {
+                androidx.compose.material3.FilledTonalButton(onClick = { create(null) }, modifier = Modifier.fillMaxWidth().height(56.dp)) { Text("Stattdessen als neuen Eintrag speichern") }
+            }
+            if (others.isNotEmpty()) {
+                Text(if (fitting.isEmpty()) "Oder zu einem Login hinzufügen" else "Andere Logins für diese Seite", style = MaterialTheme.typography.titleSmall, color = MaterialTheme.colorScheme.primary)
                 LazyColumn(verticalArrangement = Arrangement.spacedBy(2.dp)) {
-                    itemsIndexed(s.targets) { index, t ->
+                    itemsIndexed(others) { index, t ->
                         val top = if (index == 0) 24.dp else 4.dp
-                        val bottom = if (index == s.targets.lastIndex) 24.dp else 4.dp
+                        val bottom = if (index == others.lastIndex) 24.dp else 4.dp
                         Surface(
                             shape = RoundedCornerShape(topStart = top, topEnd = top, bottomStart = bottom, bottomEnd = bottom),
                             color = MaterialTheme.colorScheme.surface,

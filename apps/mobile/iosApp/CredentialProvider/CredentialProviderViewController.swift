@@ -34,7 +34,7 @@ final class CredentialProviderViewController: ASCredentialProviderViewController
             return
         }
         bridge.recordUse(id: id, nowEpochMs: Self.nowMs)
-        extensionContext.completeRequest(withSelectedCredential: ASPasswordCredential(user: identity.user, password: password))
+        afterLearning { self.extensionContext.completeRequest(withSelectedCredential: ASPasswordCredential(user: identity.user, password: password)) }
     }
 
     override func prepareInterfaceToProvideCredential(for credentialRequest: any ASCredentialRequest) {
@@ -48,7 +48,7 @@ final class CredentialProviderViewController: ASCredentialProviderViewController
         host(ExtensionRoot(mode: .password, identifiers: [identity.serviceIdentifier.identifier], singleId: id, bridge: bridge, onDone: { _ in self.cancel() }) { ok in
             guard ok, let password = self.bridge.password(id: id) else { return self.cancel() }
             self.bridge.recordUse(id: id, nowEpochMs: Self.nowMs)
-            self.extensionContext.completeRequest(withSelectedCredential: ASPasswordCredential(user: identity.user, password: password))
+            self.afterLearning { self.extensionContext.completeRequest(withSelectedCredential: ASPasswordCredential(user: identity.user, password: password)) }
         })
     }
 
@@ -91,7 +91,10 @@ final class CredentialProviderViewController: ASCredentialProviderViewController
     private func sign(_ request: PasskeyAssertionRequest, cipherId: String?) {
         work(title: "Anmelden bei \(request.rpId)") {
             let result = try await VaultService.shared.passkeyAssertion(request, cipherId: cipherId)
-            if let id = result.selectedCredential.cipher.id { self.bridge.recordUse(id: id, nowEpochMs: Self.nowMs) }
+            if let id = result.selectedCredential.cipher.id {
+                self.bridge.recordUse(id: id, nowEpochMs: Self.nowMs)
+                await CredentialIdentitySync.run()
+            }
             _ = await self.extensionContext.completeAssertionRequest(using: ASPasskeyAssertionCredential(
                 userHandle: result.userHandle,
                 relyingParty: request.rpId,
@@ -207,6 +210,10 @@ final class CredentialProviderViewController: ASCredentialProviderViewController
         guard let result, let row = result.row else { return cancel() }
         if let offer = result.acceptedLink { bridge.acceptLink(offer: offer); Task { await CredentialIdentitySync.run() } }
         bridge.recordUse(id: row.id, nowEpochMs: Self.nowMs)
+        afterLearning { self.complete(result, row: row, mode: mode) }
+    }
+
+    private func complete(_ result: ExtensionRoot.Result, row: ProviderRow, mode: ExtensionRoot.Mode) {
         switch mode {
         case .password, .passkey, .newPasskey:
             guard let password = bridge.password(id: row.id) else { return cancel() }
@@ -223,6 +230,14 @@ final class CredentialProviderViewController: ASCredentialProviderViewController
             } else {
                 cancel()
             }
+        }
+    }
+
+    /// Hands iOS the new suggestion order (the login just picked first) before the sheet closes.
+    private func afterLearning(_ complete: @escaping () -> Void) {
+        Task { @MainActor in
+            await CredentialIdentitySync.run()
+            complete()
         }
     }
 

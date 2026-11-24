@@ -1,5 +1,7 @@
 package com.framepersecond.m3bitwarden.autofill
 
+import com.framepersecond.m3bitwarden.platform.PlatformPrefs
+
 import com.framepersecond.m3bitwarden.autofill.match.Credential
 import com.framepersecond.m3bitwarden.autofill.match.CredentialKind
 import com.framepersecond.m3bitwarden.autofill.match.LearnedLink
@@ -17,6 +19,53 @@ interface AutofillStore {
     fun dismiss(key: String)
     fun usage(): Map<String, Pair<Long, Int>>
     fun recordUse(itemId: String, epochMs: Long)
+}
+
+/**
+ * [AutofillStore] in the platform preferences (on iOS the app group, shared by the app and the
+ * AutoFill extension), so which login was picked where survives the extension process. Holds only
+ * item ids, domains, app ids and use times, never a password or any other vault content.
+ */
+class SharedPrefsAutofillStore : AutofillStore {
+    override fun learnedLinks(): List<LearnedLink> = lines(KEY_LINKS).mapNotNull { line ->
+        val p = line.split(SEP)
+        if (p.size < 4 || p[0].isEmpty()) null
+        else LearnedLink(p[0], p[1].ifEmpty { null }, p[2].ifEmpty { null }, p[3].ifEmpty { null })
+    }
+
+    override fun addLearnedLink(link: LearnedLink) {
+        val all = (learnedLinks().filterNot { it == link } + link).takeLast(MAX)
+        write(KEY_LINKS, all.map { listOf(it.credentialId, it.appId.orEmpty(), it.appCertSha256.orEmpty(), it.domain.orEmpty()).joinToString(SEP) })
+    }
+
+    override fun dismissed(): Set<String> = lines(KEY_DISMISSED).toSet()
+
+    override fun dismiss(key: String) = write(KEY_DISMISSED, (lines(KEY_DISMISSED) + key).distinct().takeLast(MAX))
+
+    override fun usage(): Map<String, Pair<Long, Int>> = lines(KEY_USAGE).mapNotNull { line ->
+        val p = line.split(SEP)
+        val at = p.getOrNull(1)?.toLongOrNull() ?: return@mapNotNull null
+        p[0] to (at to (p.getOrNull(2)?.toIntOrNull() ?: 1))
+    }.toMap()
+
+    override fun recordUse(itemId: String, epochMs: Long) {
+        val all = usage().toMutableMap()
+        all[itemId] = epochMs to ((all[itemId]?.second ?: 0) + 1)
+        write(KEY_USAGE, all.entries.sortedBy { it.value.first }.takeLast(MAX).map { "${it.key}$SEP${it.value.first}$SEP${it.value.second}" })
+    }
+
+    private fun lines(key: String): List<String> =
+        PlatformPrefs.getString(key)?.split('\n')?.filter { it.isNotBlank() }.orEmpty()
+
+    private fun write(key: String, lines: List<String>) = PlatformPrefs.putString(key, lines.joinToString("\n"))
+
+    private companion object {
+        const val KEY_LINKS = "autofill.learnedLinks"
+        const val KEY_DISMISSED = "autofill.dismissed"
+        const val KEY_USAGE = "autofill.usage"
+        const val SEP = "\t"
+        const val MAX = 2_000
+    }
 }
 
 class InMemoryAutofillStore : AutofillStore {

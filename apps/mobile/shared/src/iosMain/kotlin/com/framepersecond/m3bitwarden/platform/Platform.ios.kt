@@ -1,6 +1,7 @@
 package com.framepersecond.m3bitwarden.platform
 
 import androidx.compose.material3.ColorScheme
+import androidx.compose.ui.graphics.toComposeImageBitmap
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.SideEffect
 import androidx.compose.runtime.remember
@@ -91,3 +92,6 @@ actual fun openUrl(url: String) {
     val target = platform.Foundation.NSURL.URLWithString(url) ?: return
     UIApplication.sharedApplication.openURL(target, options = emptyMap<Any?, Any>(), completionHandler = null)
 }
+
+actual fun decodeImage(bytes: ByteArray): androidx.compose.ui.graphics.ImageBitmap? =
+    runCatching { org.jetbrains.skia.Image.makeFromEncoded(bytes).toComposeImageBitmap() }.getOrNull()

@@ -58,3 +58,6 @@ expect object PlatformPrefs {
 
 /** Opens a website in the system browser. */
 expect fun openUrl(url: String)
+
+/** Decodes a PNG/ICO/JPEG/WebP image (website icons); null if it is not a readable image. */
+expect fun decodeImage(bytes: ByteArray): androidx.compose.ui.graphics.ImageBitmap?

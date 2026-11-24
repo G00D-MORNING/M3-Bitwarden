@@ -27,12 +27,37 @@ struct PasskeyEntry: Identifiable, Hashable {
 
 /// A login that can take a new passkey (Bitwarden keeps one passkey per login).
 struct PasskeyTarget: Identifiable, Hashable {
+    enum Match: Int, Comparable {
+        case none, similar, same
+        static func < (a: Match, b: Match) -> Bool { a.rawValue < b.rawValue }
+    }
+
     let cipherId: String
     let name: String
     let userName: String
     let host: String
+    /// How well the login's username fits the account the site creates the passkey for.
+    var match: Match = .none
 
     var id: String { cipherId }
+
+    /// Compares the account name a site sends (e-mail, phone number or user name) with a login's
+    /// username: equal ignoring case, or the same phone digits, is `.same`; the same e-mail local
+    /// part or one name containing the other is `.similar`.
+    static func match(_ account: String, _ username: String) -> Match {
+        let a = account.trimmingCharacters(in: .whitespaces).lowercased()
+        let b = username.trimmingCharacters(in: .whitespaces).lowercased()
+        guard !a.isEmpty, !b.isEmpty else { return .none }
+        if a == b { return .same }
+        let digitsA = a.filter(\.isNumber), digitsB = b.filter(\.isNumber)
+        let phoneLike = { (s: String, d: String) in d.count >= 6 && d.count * 10 >= s.filter { !$0.isWhitespace }.count * 7 }
+        if phoneLike(a, digitsA), phoneLike(b, digitsB), digitsA.suffix(9) == digitsB.suffix(9) { return .same }
+        let localA = a.split(separator: "@").first.map(String.init) ?? a
+        let localB = b.split(separator: "@").first.map(String.init) ?? b
+        if localA == localB, localA.count >= 3 { return .similar }
+        if min(a.count, b.count) >= 4, a.contains(b) || b.contains(a) { return .similar }
+        return .none
+    }
 }
 
 /// What a website or app asks for, independent of the iOS request type.
@@ -275,8 +300,9 @@ struct PasskeyEngine {
         .sorted { ($0.itemName.lowercased(), $0.userName) < ($1.itemName.lowercased(), $1.userName) }
     }
 
-    /// Logins for [rpId] that have no passkey yet and could take the new one.
-    func targets(rpId: String) -> [PasskeyTarget] {
+    /// Logins for [rpId] that have no passkey yet and could take the new one; the ones whose
+    /// username fits [account] (what the site shows: e-mail, phone, user name) come first.
+    func targets(rpId: String, account: String = "") -> [PasskeyTarget] {
         let site = rpId.lowercased()
         return decrypted.values.compactMap { cipher -> PasskeyTarget? in
             guard let id = cipher.id, cipher.deletedDate == nil, cipher.edit, let login = cipher.login,
@@ -284,9 +310,10 @@ struct PasskeyEngine {
             else { return nil }
             let hosts = (login.uris ?? []).compactMap { $0.uri.flatMap(Self.host(of:)) }
             guard let host = hosts.first(where: { $0 == site || $0.hasSuffix("." + site) || site.hasSuffix("." + $0) }) else { return nil }
-            return PasskeyTarget(cipherId: id, name: cipher.name, userName: login.username ?? "", host: host)
+            let user = login.username ?? ""
+            return PasskeyTarget(cipherId: id, name: cipher.name, userName: user, host: host, match: PasskeyTarget.match(account, user))
         }
-        .sorted { $0.name.lowercased() < $1.name.lowercased() }
+        .sorted { ($0.match, $1.name.lowercased()) > ($1.match, $0.name.lowercased()) }
     }
 
     /// Signs [request] with the passkey of [cipherId] (or the only match when nil).
@@ -367,8 +394,8 @@ extension VaultService {
         passkeyEngine?.passkeys(rpId: rpId, allowed: allowed) ?? []
     }
 
-    func passkeyTargets(rpId: String) -> [PasskeyTarget] {
-        passkeyEngine?.targets(rpId: rpId) ?? []
+    func passkeyTargets(rpId: String, account: String = "") -> [PasskeyTarget] {
+        passkeyEngine?.targets(rpId: rpId, account: account) ?? []
     }
 
     func passkeyAssertion(_ request: PasskeyAssertionRequest, cipherId: String?) async throws -> GetAssertionResult {

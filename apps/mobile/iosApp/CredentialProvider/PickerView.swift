@@ -103,14 +103,26 @@ struct ExtensionRoot: View {
             service.errorMessage = "Melde dich zuerst in der App M3 Bitwarden an."
             return
         }
-        if service.canUseBiometrics { await tryBiometrics() }
+        guard service.canUseBiometrics else { return }
+        // Face ID right away, without a tap. The sheet may still be sliding in, and iOS refuses a
+        // prompt from a view that is not on screen yet: wait a moment, and try once more if the
+        // first attempt ended at once.
+        try? await Task.sleep(nanoseconds: 250_000_000)
+        let started = Date()
+        if await tryBiometrics() { return }
+        if Date().timeIntervalSince(started) < 0.8, service.errorMessage == nil {
+            try? await Task.sleep(nanoseconds: 450_000_000)
+            await tryBiometrics()
+        }
     }
 
-    private func tryBiometrics() async {
+    @discardableResult
+    private func tryBiometrics() async -> Bool {
         trying = true
         let ok = await service.unlockWithBiometrics(loadTimeout: 20)
         trying = false
         if ok { finishUnlock() }
+        return ok
     }
 
     private func unlockWithPassword() {
@@ -126,7 +138,7 @@ struct ExtensionRoot: View {
         if singleId != nil { return onUnlockedSingle(true) }
         rows = bridge.rows(identifiers: identifiers, nowEpochMs: Int64(Date().timeIntervalSince1970 * 1000))
         if mode == .passkey, let site = passkeySite { passkeys = service.passkeys(rpId: site, allowed: allowedPasskeys) }
-        if mode == .newPasskey, let site = passkeySite { targets = service.passkeyTargets(rpId: site) }
+        if mode == .newPasskey, let site = passkeySite { targets = service.passkeyTargets(rpId: site, account: newPasskeyUser ?? "") }
         withAnimation(.spring(response: 0.45, dampingFraction: 0.8)) { unlocked = true }
     }
 }
@@ -372,14 +384,25 @@ struct NewPasskeyView: View {
                     .padding(20).frame(maxWidth: .infinity)
                     .background(M3.surface, in: RoundedRectangle(cornerRadius: 28, style: .continuous))
 
-                    Button { onDone(.init()) } label: { Label("Als neuen Eintrag speichern", systemImage: "plus") }
-                        .buttonStyle(M3ButtonStyle())
-
-                    if !targets.isEmpty {
+                    let fitting = targets.filter { $0.match != .none }
+                    let others = targets.filter { $0.match == .none }
+                    if !fitting.isEmpty {
                         VStack(alignment: .leading, spacing: 8) {
-                            Text("Oder zu einem Login hinzufügen").font(.subheadline.weight(.semibold)).foregroundStyle(M3.primary).padding(.leading, 4)
+                            Text(fitting.count == 1 ? "Passender Login" : "Passende Logins").font(.subheadline.weight(.semibold)).foregroundStyle(M3.primary).padding(.leading, 4)
+                            ForEach(fitting) { target in fittingRow(target) }
+                        }
+                        Button { onDone(.init()) } label: { Label("Stattdessen als neuen Eintrag speichern", systemImage: "plus") }
+                            .buttonStyle(M3ButtonStyle(kind: .tonal, height: 48))
+                    } else {
+                        Button { onDone(.init()) } label: { Label("Als neuen Eintrag speichern", systemImage: "plus") }
+                            .buttonStyle(M3ButtonStyle())
+                    }
+
+                    if !others.isEmpty {
+                        VStack(alignment: .leading, spacing: 8) {
+                            Text(fitting.isEmpty ? "Oder zu einem Login hinzufügen" : "Andere Logins für diese Seite").font(.subheadline.weight(.semibold)).foregroundStyle(M3.primary).padding(.leading, 4)
                             VStack(spacing: 2) {
-                                ForEach(Array(targets.enumerated()), id: \.element.id) { index, target in
+                                ForEach(Array(others.enumerated()), id: \.element.id) { index, target in
                                     Button { onDone(.init(passkeyTarget: target.cipherId)) } label: {
                                         HStack(spacing: 16) {
                                             Text(String(target.name.prefix(1)).uppercased())
@@ -402,7 +425,7 @@ struct NewPasskeyView: View {
                                     }
                                     .buttonStyle(.plain)
                                     .foregroundStyle(M3.onSurface)
-                                    .background(M3.surface, in: SegmentShape(index: index, count: targets.count))
+                                    .background(M3.surface, in: SegmentShape(index: index, count: others.count))
                                 }
                             }
                         }
@@ -411,6 +434,36 @@ struct NewPasskeyView: View {
                 .padding(16)
             }
         }
+    }
+}
+
+extension NewPasskeyView {
+    /// A login whose username fits the account: highlighted, with what fits.
+    func fittingRow(_ target: PasskeyTarget) -> some View {
+        Button { onDone(.init(passkeyTarget: target.cipherId)) } label: {
+            HStack(spacing: 16) {
+                Image(systemName: "person.badge.key.fill")
+                    .font(.system(size: 19, weight: .semibold))
+                    .frame(width: 44, height: 44)
+                    .foregroundStyle(M3.onPrimary)
+                    .background(M3.primary, in: RoundedRectangle(cornerRadius: 14, style: .continuous))
+                VStack(alignment: .leading, spacing: 2) {
+                    Text(target.name).font(.body.weight(.semibold)).lineLimit(1)
+                    Text(target.userName).font(.subheadline).foregroundStyle(M3.onSurfaceVariant).lineLimit(1)
+                    Label(target.match == .same ? "Gleiches Konto · \(target.host)" : "Ähnliches Konto · \(target.host)", systemImage: "checkmark.seal.fill")
+                        .font(.caption.weight(.semibold)).foregroundStyle(M3.primary).lineLimit(1)
+                }
+                Spacer(minLength: 0)
+                Text("Hinzufügen").font(.subheadline.weight(.semibold)).foregroundStyle(M3.primary)
+            }
+            .padding(.horizontal, 16).padding(.vertical, 14)
+            .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+        .foregroundStyle(M3.onSurface)
+        .background(M3.primaryContainer.opacity(0.55), in: RoundedRectangle(cornerRadius: 24, style: .continuous))
+        .overlay(RoundedRectangle(cornerRadius: 24, style: .continuous).stroke(M3.primary.opacity(0.6), lineWidth: 1.5))
+        .accessibilityLabel("Passkey zu \(target.name), \(target.userName) hinzufügen")
     }
 }
 

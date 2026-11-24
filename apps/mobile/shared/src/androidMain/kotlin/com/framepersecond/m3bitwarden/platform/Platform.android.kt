@@ -8,6 +8,7 @@ import android.os.Build
 import android.os.PersistableBundle
 import androidx.activity.compose.BackHandler
 import androidx.compose.material3.ColorScheme
+import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.material3.dynamicDarkColorScheme
 import androidx.compose.material3.dynamicLightColorScheme
 import androidx.compose.runtime.Composable
@@ -92,3 +93,6 @@ actual fun openUrl(url: String) {
         .addFlags(android.content.Intent.FLAG_ACTIVITY_NEW_TASK)
     runCatching { AndroidPlatform.context.startActivity(intent) }
 }
+
+actual fun decodeImage(bytes: ByteArray): androidx.compose.ui.graphics.ImageBitmap? =
+    runCatching { android.graphics.BitmapFactory.decodeByteArray(bytes, 0, bytes.size)?.asImageBitmap() }.getOrNull()

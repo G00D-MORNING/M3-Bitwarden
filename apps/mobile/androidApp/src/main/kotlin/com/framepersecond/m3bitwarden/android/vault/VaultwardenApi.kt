@@ -168,6 +168,24 @@ class VaultwardenApi(private val certificate: DeviceCertificate, private val sto
             }
         }
 
+    /** Website icon from the server's icon service (`/icons/<host>/icon.png`), or null. */
+    suspend fun icon(host: String): ByteArray? = withContext(Dispatchers.IO) {
+        if (!certificate.isInstalled || !host.matches(Regex("^[a-z0-9.-]+$"))) return@withContext null
+        val conn = URL("${M3BConfig.SERVER_URL}/icons/$host/icon.png").openConnection() as HttpsURLConnection
+        try {
+            conn.sslSocketFactory = certificate.socketFactory()
+            conn.connectTimeout = 15_000
+            conn.readTimeout = 15_000
+            conn.setRequestProperty("User-Agent", "M3Bitwarden/${M3BConfig.CLIENT_VERSION} (Android)")
+            if (conn.responseCode != 200 || !(conn.contentType ?: "image").startsWith("image")) return@withContext null
+            conn.inputStream.use { it.readBytes() }.takeIf { it.size < 300_000 }
+        } catch (_: IOException) {
+            null
+        } finally {
+            conn.disconnect()
+        }
+    }
+
     private fun message(body: JSONObject): String =
         body.obj("ErrorModel")?.str("Message") ?: body.str("error_description") ?: body.str("message") ?: ""
 

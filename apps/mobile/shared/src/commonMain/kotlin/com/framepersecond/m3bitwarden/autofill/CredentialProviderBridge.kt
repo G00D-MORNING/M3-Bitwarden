@@ -22,8 +22,11 @@ data class ProviderRow(
     val needsConfirmation: Boolean,
 )
 
-/** One entry for `ASCredentialIdentityStore`, so iOS can show logins above the keyboard. */
-data class ProviderIdentity(val domain: String, val user: String, val recordId: String)
+/**
+ * One entry for `ASCredentialIdentityStore`, so iOS can show logins above the keyboard.
+ * [rank]: higher is suggested first; the login picked most recently for a site wins.
+ */
+data class ProviderIdentity(val domain: String, val user: String, val recordId: String, val rank: Int = 0)
 
 /** Offer shown after a manual pick: "use this login for <domain> from now on?". */
 data class ProviderLinkOffer(val itemId: String, val domain: String, val uri: String)
@@ -36,7 +39,8 @@ data class ProviderLinkOffer(val itemId: String, val domain: String, val uri: St
  */
 object CredentialProviderBridge {
 
-    private val vault = AutofillVault(InMemoryAutofillStore())
+    // Persistent (app group): picks in the extension teach the next suggestion order.
+    private val vault = AutofillVault(SharedPrefsAutofillStore())
     var equivalentDomains: List<Set<String>> = emptyList()
 
     val isUnlocked: Boolean get() = VaultSession.isUnlocked
@@ -69,6 +73,9 @@ object CredentialProviderBridge {
 
     fun recordUse(id: String, nowEpochMs: Long) = vault.recordUse(id, nowEpochMs)
 
+    /** Suggestion rank for item [id]: minutes since 1970 of its last use, 0 if never used here. */
+    fun rank(id: String): Int = vault.credentials().firstOrNull { it.id == id }?.lastUsedEpochMs?.let { (it / 60_000).toInt() } ?: 0
+
     /** After a manual pick: a link offer if the item did not already match [identifier]. */
     fun linkOffer(id: String, identifier: String): ProviderLinkOffer? {
         val target = targetFor(identifier) ?: return null
@@ -91,19 +98,21 @@ object CredentialProviderBridge {
     fun identities(): List<ProviderIdentity> {
         val out = LinkedHashSet<ProviderIdentity>()
         for (c in vault.credentials().filter { it.kind == CredentialKind.Login }) {
+            val rank = c.lastUsedEpochMs?.let { (it / 60_000).toInt() } ?: 0
+            fun identity(domain: String) = ProviderIdentity(domain, c.username, c.id, rank)
             for (u in c.uris) {
                 val info = UrlInfo.parse(u.uri) ?: continue
                 val host = info.host ?: continue
-                out += ProviderIdentity(host, c.username, c.id)
+                out += identity(host)
                 // Only logins saved for the bare domain (or www.) cover the whole domain. A login for
                 // nas.example.com must not be suggested on mail.example.com: iOS matches identities by
                 // domain suffix, so announcing the registrable domain would mix all subdomains.
                 val reg = info.registrableDomain ?: continue
                 if (host != reg && host != "www.$reg") continue
-                out += ProviderIdentity(reg, c.username, c.id)
-                equivalentDomains.firstOrNull { reg in it }?.forEach { eq -> out += ProviderIdentity(eq, c.username, c.id) }
+                out += identity(reg)
+                equivalentDomains.firstOrNull { reg in it }?.forEach { eq -> out += identity(eq) }
             }
-            vault.learnedLinks().filter { it.credentialId == c.id && it.domain != null }.forEach { out += ProviderIdentity(it.domain!!, c.username, c.id) }
+            vault.learnedLinks().filter { it.credentialId == c.id && it.domain != null }.forEach { out += identity(it.domain!!) }
         }
         return out.toList()
     }
