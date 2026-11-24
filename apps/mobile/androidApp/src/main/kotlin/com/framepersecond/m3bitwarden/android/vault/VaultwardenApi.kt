@@ -35,6 +35,22 @@ class VaultwardenApi(private val certificate: DeviceCertificate, private val sto
         return Prelogin(json.int("kdf") ?: 0, json.int("kdfIterations") ?: 600_000, json.int("kdfMemory"), json.int("kdfParallelism"))
     }
 
+    /**
+     * Starts a registration. Returns the verification token when the server hands it out right
+     * away (mail off or no e-mail check); null when it sent a confirmation link by e-mail.
+     */
+    suspend fun registerVerification(email: String, name: String?): String? {
+        val body = JSONObject().put("email", email).apply { if (!name.isNullOrBlank()) put("name", name) }
+        val text = send("POST", "${M3BConfig.IDENTITY_URL}/accounts/register/send-verification-email", body.toString(), auth = false).trim()
+        if (text.isEmpty()) return null
+        return (runCatching { org.json.JSONTokener(text).nextValue() as? String }.getOrNull() ?: text).ifBlank { null }
+    }
+
+    /** Creates the account with keys made by the SDK (nothing secret leaves the device unencrypted). */
+    suspend fun registerFinish(body: JSONObject) {
+        send("POST", "${M3BConfig.IDENTITY_URL}/accounts/register/finish", body.toString(), auth = false)
+    }
+
     /** Password grant. [passwordHash] is the SDK's server-authorization hash, never the password. */
     suspend fun login(email: String, passwordHash: String, deviceIdentifier: String, deviceName: String, twoFactor: Pair<Int, String>?): JSONObject {
         val form = mutableListOf(

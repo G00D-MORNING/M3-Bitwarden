@@ -243,6 +243,61 @@ class AndroidVault private constructor(private val context: Context) : VaultBack
         unlock(client, acc, InitUserCryptoMethod.MasterPasswordUnlock(password, MasterPasswordUnlockData(acc.kdf, acc.masterKeyWrappedUserKey, acc.email)))
     }
 
+    // MARK: Registration
+
+    /** Registration in progress: null = form, "" = confirmation link was e-mailed. */
+    var registrationToken by mutableStateOf<String?>(null)
+        private set
+
+    /** First step: asks Vaultwarden to start a registration; without mail the token comes back at once. */
+    fun startRegistration(rawEmail: String, name: String, password: String, hint: String) = launchTask {
+        val email = rawEmail.trim().lowercase()
+        val token = api.registerVerification(email, name)
+        if (token != null) {
+            createAccount(email, name, password, hint, token)
+        } else {
+            registrationToken = ""
+        }
+    }
+
+    /** Second step after the e-mail: [link] is the pasted confirmation link or its token. */
+    fun finishRegistration(rawEmail: String, name: String, password: String, hint: String, link: String) = launchTask {
+        createAccount(rawEmail.trim().lowercase(), name, password, hint, verificationToken(link))
+    }
+
+    fun cancelRegistration() {
+        registrationToken = null
+        error = null
+    }
+
+    /**
+     * Makes the account keys with the Bitwarden SDK (master key from the password, a new user key
+     * and key pair, all encrypted on the device), creates the account and signs in.
+     */
+    private suspend fun createAccount(email: String, name: String, password: String, hint: String, token: String) {
+        val iterations = 600_000
+        val keys = makeClient().auth().makeRegisterKeys(email, password, Kdf.Pbkdf2(iterations.toUInt()))
+        val body = JSONObject()
+            .put("email", email)
+            .put("masterPasswordHash", keys.masterPasswordHash)
+            .put("key", keys.encryptedUserKey)
+            .put("kdf", 0)
+            .put("kdfIterations", iterations)
+            .put("keys", JSONObject().put("publicKey", keys.keys.public).put("encryptedPrivateKey", keys.keys.private))
+            .put("emailVerificationToken", token)
+        if (name.isNotBlank()) body.put("name", name.take(50))
+        if (hint.isNotBlank()) body.put("masterPasswordHint", hint)
+        api.registerFinish(body)
+        registrationToken = null
+        login(email, password)
+    }
+
+    private fun verificationToken(text: String): String {
+        val trimmed = text.trim()
+        val query = trimmed.substringAfter('?', trimmed)
+        return query.split('&').firstOrNull { it.startsWith("token=") }?.removePrefix("token=")?.let { java.net.URLDecoder.decode(it, "UTF-8") } ?: trimmed
+    }
+
     fun cancelTwoFactor() {
         twoFactorProviders = emptyList()
         pendingLogin = null

@@ -82,6 +82,30 @@ final class VaultwardenAPI {
         ], email: nil)
     }
 
+    // MARK: Registration
+
+    /// Starts a registration. Returns the verification token when the server hands it out right
+    /// away (mail off or no e-mail check); nil when it sent a confirmation link by e-mail.
+    func registerVerification(email: String, name: String?) async throws -> String? {
+        var body: [String: Any] = ["email": email]
+        if let name, !name.isEmpty { body["name"] = name }
+        var req = request(M3BConfig.identityURL.appendingPathComponent("accounts/register/send-verification-email"), method: "POST")
+        req.setValue("application/json", forHTTPHeaderField: "Content-Type")
+        req.httpBody = try JSONSerialization.data(withJSONObject: body)
+        let data = try await raw(req, auth: false)
+        guard !data.isEmpty else { return nil }
+        if let token = try? JSONDecoder().decode(String.self, from: data) { return token }
+        return String(decoding: data, as: UTF8.self).trimmingCharacters(in: .whitespacesAndNewlines)
+    }
+
+    /// Creates the account with keys made by the SDK (nothing secret leaves the device unencrypted).
+    func registerFinish(_ body: [String: Any]) async throws {
+        var req = request(M3BConfig.identityURL.appendingPathComponent("accounts/register/finish"), method: "POST")
+        req.setValue("application/json", forHTTPHeaderField: "Content-Type")
+        req.httpBody = try JSONSerialization.data(withJSONObject: body)
+        _ = try await raw(req, auth: false)
+    }
+
     /// Asks the server to e-mail a two-factor code (provider 1).
     func sendEmailCode(email: String, passwordHash: String) async throws {
         let _: EmptyResponse = try await send(

@@ -140,6 +140,64 @@ final class VaultService: NSObject, ObservableObject {
         }
     }
 
+    // MARK: Registration
+
+    enum RegistrationStart: Equatable {
+        /// The server gave the verification token right away: the account can be created now.
+        case ready(token: String)
+        /// The server sent a confirmation link by e-mail.
+        case emailSent
+    }
+
+    /// First step: asks Vaultwarden to start a registration for [email].
+    func startRegistration(email rawEmail: String, name: String) async -> RegistrationStart? {
+        var result: RegistrationStart?
+        await run {
+            let email = rawEmail.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
+            if let token = try await self.api.registerVerification(email: email, name: name), !token.isEmpty {
+                result = .ready(token: token)
+            } else {
+                result = .emailSent
+            }
+        }
+        return result
+    }
+
+    /// Second step: makes the account keys with the Bitwarden SDK (master key from the password,
+    /// a new user key and key pair, all encrypted on the device), creates the account and signs in.
+    func finishRegistration(email rawEmail: String, name: String, password: String, hint: String, token: String) async {
+        let email = rawEmail.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
+        var created = false
+        await run {
+            let iterations: UInt32 = 600_000
+            let keys = try self.makeClient().auth().makeRegisterKeys(email: email, password: password, kdf: .pbkdf2(iterations: iterations))
+            var body: [String: Any] = [
+                "email": email,
+                "masterPasswordHash": keys.masterPasswordHash,
+                "key": keys.encryptedUserKey,
+                "kdf": 0,
+                "kdfIterations": Int(iterations),
+                "keys": ["publicKey": keys.keys.public, "encryptedPrivateKey": keys.keys.private],
+                "emailVerificationToken": Self.verificationToken(from: token),
+            ]
+            if !name.isEmpty { body["name"] = String(name.prefix(50)) }
+            if !hint.isEmpty { body["masterPasswordHint"] = hint }
+            try await self.api.registerFinish(body)
+            created = true
+        }
+        if created { await login(email: email, password: password) }
+    }
+
+    /// The token from a pasted confirmation link ("…/finish-signup?email=…&token=…") or the token itself.
+    static func verificationToken(from text: String) -> String {
+        let trimmed = text.trimmingCharacters(in: .whitespacesAndNewlines)
+        let query = trimmed.split(separator: "?", maxSplits: 1).last.map(String.init) ?? trimmed
+        for part in query.split(separator: "&") where part.hasPrefix("token=") {
+            return String(part.dropFirst(6)).removingPercentEncoding ?? String(part.dropFirst(6))
+        }
+        return trimmed
+    }
+
     func cancelTwoFactor() {
         twoFactorProviders = []
         pendingLogin = nil

@@ -232,6 +232,8 @@ private fun Step(number: String, title: String, content: @Composable ColumnScope
 
 @Composable
 private fun LoginScreen(vault: AndroidVault) {
+    var register by rememberSaveable { mutableStateOf(false) }
+    if (register) return RegisterScreen(vault) { register = false }
     var email by rememberSaveable { mutableStateOf("") }
     var password by remember { mutableStateOf("") }
     var code by remember { mutableStateOf("") }
@@ -259,7 +261,7 @@ private fun LoginScreen(vault: AndroidVault) {
             PasswordField("Master-Passwort", password, { password = it }) { if (email.isNotBlank() && password.isNotEmpty()) vault.login(email, password) }
             ErrorText(vault.error)
             BusyButton("Anmelden", vault.busy, email.isNotBlank() && password.isNotEmpty()) { vault.login(email, password) }
-            TextButton(onClick = { openUrl(M3BConfig.WEB_VAULT_URL) }, modifier = Modifier.fillMaxWidth()) { Text("Neues Konto in der Weboberfläche anlegen") }
+            androidx.compose.material3.FilledTonalButton(onClick = { register = true; vault.cancelRegistration() }, modifier = Modifier.fillMaxWidth().height(48.dp)) { Text("Neues Konto erstellen") }
         } else {
             OutlinedTextField(
                 value = code,
@@ -275,6 +277,59 @@ private fun LoginScreen(vault: AndroidVault) {
             BusyButton("Bestätigen", vault.busy, code.isNotEmpty()) { vault.login(email, password, code) }
             TextButton(onClick = { vault.cancelTwoFactor(); code = "" }, modifier = Modifier.fillMaxWidth()) { Text("Abbrechen") }
         }
+    }
+}
+
+// MARK: Registration
+
+/** New account on this server, right in the app; keys are made on the device by the Bitwarden SDK. */
+@Composable
+private fun RegisterScreen(vault: AndroidVault, onBack: () -> Unit) {
+    var email by rememberSaveable { mutableStateOf("") }
+    var name by rememberSaveable { mutableStateOf("") }
+    var password by remember { mutableStateOf("") }
+    var repeated by remember { mutableStateOf("") }
+    var hint by rememberSaveable { mutableStateOf("") }
+    var link by remember { mutableStateOf("") }
+    var local by remember { mutableStateOf<String?>(null) }
+    val waiting = vault.registrationToken == ""
+
+    SetupPage(
+        Symbols.ShieldLockFill,
+        if (waiting) "E-Mail bestätigen" else "Konto erstellen",
+        if (waiting) "Wir haben dir einen Link an $email geschickt. Kopiere ihn aus der E-Mail und füge ihn hier ein." else "Auf ${M3BConfig.serverHost}",
+    ) {
+        if (waiting) {
+            OutlinedTextField(link, { link = it }, label = { Text("Link aus der E-Mail") }, singleLine = true, modifier = Modifier.fillMaxWidth())
+            ErrorText(vault.error)
+            BusyButton("Konto erstellen", vault.busy, link.isNotBlank()) { vault.finishRegistration(email, name, password, hint, link) }
+        } else {
+            OutlinedTextField(
+                email, { email = it }, label = { Text("E-Mail") }, singleLine = true, leadingIcon = { Icon(Symbols.Mail, null) },
+                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Email, imeAction = ImeAction.Next, autoCorrectEnabled = false),
+                modifier = Modifier.fillMaxWidth(),
+            )
+            OutlinedTextField(name, { name = it }, label = { Text("Name (optional)") }, singleLine = true, modifier = Modifier.fillMaxWidth())
+            PasswordField("Master-Passwort (mind. 12 Zeichen)", password, { password = it }) {}
+            PasswordField("Master-Passwort wiederholen", repeated, { repeated = it }) {}
+            OutlinedTextField(hint, { hint = it }, label = { Text("Hinweis (optional)") }, singleLine = true, modifier = Modifier.fillMaxWidth())
+            Text(
+                "Das Master-Passwort kann niemand zurücksetzen, auch nicht der Server. Vergisst du es, ist der Tresor verloren.",
+                style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+            ErrorText(local ?: vault.error)
+            BusyButton("Konto erstellen", vault.busy, email.isNotBlank() && password.isNotEmpty() && repeated.isNotEmpty()) {
+                local = when {
+                    "@" !in email -> "Bitte gib eine gültige E-Mail-Adresse ein."
+                    password.length < 12 -> "Das Master-Passwort braucht mindestens 12 Zeichen."
+                    password != repeated -> "Die beiden Passwörter stimmen nicht überein."
+                    hint.isNotBlank() && password.lowercase().contains(hint.lowercase()) -> "Der Hinweis darf das Passwort nicht enthalten."
+                    else -> null
+                }
+                if (local == null) vault.startRegistration(email, name, password, hint)
+            }
+        }
+        TextButton(onClick = { vault.cancelRegistration(); onBack() }, modifier = Modifier.fillMaxWidth()) { Text("Zurück zur Anmeldung") }
     }
 }
 

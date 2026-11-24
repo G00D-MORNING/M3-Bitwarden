@@ -158,10 +158,19 @@ struct SignInView: View {
     @State private var email = ""
     @State private var password = ""
     @State private var code = ""
+    @State private var register = false
 
     private var twoFactor: Bool { !service.twoFactorProviders.isEmpty }
 
     var body: some View {
+        if register {
+            RegisterView(service: service) { register = false }
+        } else {
+            signIn
+        }
+    }
+
+    private var signIn: some View {
         SetupPage(
             symbol: twoFactor ? "lock.badge.clock.fill" : "shield.lefthalf.filled",
             title: twoFactor ? "Bestätigen" : "Anmelden",
@@ -180,7 +189,9 @@ struct SignInView: View {
                 M3Field(label: "Master-Passwort", text: $password, symbol: "key.fill", secure: true, content: .password) { submit() }
                 if let error = service.errorMessage { M3Error(text: error) }
                 Button(action: submit) { busyLabel("Anmelden") }.buttonStyle(M3ButtonStyle()).disabled(email.isEmpty || password.isEmpty || service.busy)
-                Link("Neues Konto in der Weboberfläche anlegen", destination: M3BConfig.webVaultURL).font(.subheadline.weight(.semibold)).tint(M3.primary).padding(.top, 8)
+                Button { register = true; service.errorMessage = nil } label: { Label("Neues Konto erstellen", systemImage: "person.badge.plus") }
+                    .buttonStyle(M3ButtonStyle(kind: .tonal, height: 48))
+                    .padding(.top, 8)
             }
         }
     }
@@ -200,6 +211,82 @@ struct SignInView: View {
             await service.login(email: email, password: password, twoFactorCode: code,
                                 provider: service.twoFactorProviders.contains(0) ? 0 : service.twoFactorProviders.first)
         }
+    }
+}
+
+// MARK: - Registration
+
+/// New account on this server, right in the app (the device certificate already lets it in).
+/// Keys are made on the device by the Bitwarden SDK; Vaultwarden decides whether sign-ups are open.
+struct RegisterView: View {
+    @ObservedObject var service: VaultService
+    let onBack: () -> Void
+    @State private var email = ""
+    @State private var name = ""
+    @State private var password = ""
+    @State private var repeated = ""
+    @State private var hint = ""
+    @State private var link = ""
+    @State private var waitingForMail = false
+    @State private var localError: String?
+
+    var body: some View {
+        SetupPage(
+            symbol: waitingForMail ? "envelope.badge.fill" : "person.badge.plus",
+            title: waitingForMail ? "E-Mail bestätigen" : "Konto erstellen",
+            subtitle: waitingForMail
+                ? "Wir haben dir einen Link an \(email) geschickt. Kopiere ihn aus der E-Mail und füge ihn hier ein."
+                : "Auf \(M3BConfig.serverURL.host ?? "")",
+            busy: service.busy
+        ) {
+            if waitingForMail {
+                M3Field(label: "Link aus der E-Mail", text: $link, symbol: "link") { finish(token: link) }
+                errorView
+                Button { finish(token: link) } label: { busyLabel("Konto erstellen") }
+                    .buttonStyle(M3ButtonStyle()).disabled(link.isEmpty || service.busy)
+            } else {
+                M3Field(label: "E-Mail", text: $email, symbol: "envelope.fill", content: .username, keyboard: .emailAddress)
+                M3Field(label: "Name (optional)", text: $name, symbol: "person.fill", content: .name)
+                M3Field(label: "Master-Passwort (mind. 12 Zeichen)", text: $password, symbol: "key.fill", secure: true, content: .newPassword)
+                M3Field(label: "Master-Passwort wiederholen", text: $repeated, symbol: "key.fill", secure: true, content: .newPassword)
+                M3Field(label: "Hinweis (optional)", text: $hint, symbol: "lightbulb.fill")
+                Text("Das Master-Passwort kann niemand zurücksetzen, auch nicht der Server. Vergisst du es, ist der Tresor verloren.")
+                    .font(.footnote).foregroundStyle(M3.onSurfaceVariant)
+                errorView
+                Button(action: start) { busyLabel("Konto erstellen") }
+                    .buttonStyle(M3ButtonStyle()).disabled(email.isEmpty || password.isEmpty || repeated.isEmpty || service.busy)
+            }
+            Button("Zurück zur Anmeldung") { service.errorMessage = nil; onBack() }
+                .buttonStyle(M3ButtonStyle(kind: .text, height: 44))
+        }
+    }
+
+    @ViewBuilder private var errorView: some View {
+        if let error = localError ?? service.errorMessage { M3Error(text: error) }
+    }
+
+    private func busyLabel(_ text: String) -> some View {
+        HStack { if service.busy { ProgressView().tint(M3.onPrimary) } else { Text(text) } }
+    }
+
+    private func start() {
+        localError = nil
+        guard email.contains("@") else { localError = "Bitte gib eine gültige E-Mail-Adresse ein."; return }
+        guard password.count >= 12 else { localError = "Das Master-Passwort braucht mindestens 12 Zeichen."; return }
+        guard password == repeated else { localError = "Die beiden Passwörter stimmen nicht überein."; return }
+        guard hint.isEmpty || !password.lowercased().contains(hint.lowercased()) else { localError = "Der Hinweis darf das Passwort nicht enthalten."; return }
+        Task {
+            switch await service.startRegistration(email: email, name: name) {
+            case let .ready(token): finish(token: token)
+            case .emailSent: waitingForMail = true
+            case nil: break
+            }
+        }
+    }
+
+    private func finish(token: String) {
+        guard !token.isEmpty else { return }
+        Task { await service.finishRegistration(email: email, name: name, password: password, hint: hint, token: token) }
     }
 }
 
