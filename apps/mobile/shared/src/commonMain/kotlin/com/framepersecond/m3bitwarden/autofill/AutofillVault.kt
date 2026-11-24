@@ -139,10 +139,12 @@ class AutofillVault(private val store: AutofillStore) {
             ValueKind.LastName -> identity?.lastName
             ValueKind.Email -> identity?.email ?: login?.username?.takeIf { '@' in it }
             ValueKind.Phone, ValueKind.PhoneCountryCode, ValueKind.PhoneAreaCode, ValueKind.PhoneLocal -> identity?.phone
-            ValueKind.Address, ValueKind.Street, ValueKind.HouseNumber -> identity?.address1
-            ValueKind.AddressLine2 -> identity?.let { listOf(it.address2, it.address3).filter(String::isNotBlank).joinToString(", ") }
-            ValueKind.PostalCode -> identity?.postalCode
-            ValueKind.City -> identity?.city
+            // The house number may be kept on its own line; joined here, split again per field.
+            ValueKind.Address, ValueKind.Street, ValueKind.HouseNumber -> identity?.let { com.framepersecond.m3bitwarden.autofill.format.HouseNumberJoiner.join(it.address1, it.address2, it.address3).line }
+            ValueKind.AddressLine2 -> identity?.let { com.framepersecond.m3bitwarden.autofill.format.HouseNumberJoiner.join(it.address1, it.address2, it.address3).rest.joinToString(", ") }
+            // Imports often keep the postal code inside the city or the address line.
+            ValueKind.PostalCode -> identity?.let { com.framepersecond.m3bitwarden.autofill.format.PostalSplitter.resolve(it.postalCode, it.city, listOf(it.address1, it.address2, it.address3)).postalCode }
+            ValueKind.City -> identity?.let { com.framepersecond.m3bitwarden.autofill.format.PostalSplitter.resolve(it.postalCode, it.city, listOf(it.address1, it.address2, it.address3)).city }
             ValueKind.State -> identity?.state
             ValueKind.Country -> identity?.country
             ValueKind.Organization -> identity?.company
