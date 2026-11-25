@@ -94,5 +94,13 @@ actual fun openUrl(url: String) {
     runCatching { AndroidPlatform.context.startActivity(intent) }
 }
 
+actual fun shareText(text: String) {
+    val send = android.content.Intent(android.content.Intent.ACTION_SEND)
+        .setType("text/plain")
+        .putExtra(android.content.Intent.EXTRA_TEXT, text)
+    val chooser = android.content.Intent.createChooser(send, null).addFlags(android.content.Intent.FLAG_ACTIVITY_NEW_TASK)
+    runCatching { AndroidPlatform.context.startActivity(chooser) }
+}
+
 actual fun decodeImage(bytes: ByteArray): androidx.compose.ui.graphics.ImageBitmap? =
     runCatching { android.graphics.BitmapFactory.decodeByteArray(bytes, 0, bytes.size)?.asImageBitmap() }.getOrNull()

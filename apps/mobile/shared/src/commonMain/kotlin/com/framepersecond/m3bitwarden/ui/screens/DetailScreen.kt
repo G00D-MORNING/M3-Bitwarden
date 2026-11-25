@@ -196,6 +196,7 @@ fun DetailScreen(state: AppState, id: String) {
     var folderMenu by remember { mutableStateOf(false) }
     var confirmDelete by remember { mutableStateOf(false) }
     var historyOpen by remember { mutableStateOf(false) }
+    var secureLink by remember { mutableStateOf(false) }
     val copy = LocalCopy.current
 
     Box(Modifier.fillMaxSize().background(MaterialTheme.colorScheme.surfaceContainer)) {
@@ -220,6 +221,7 @@ fun DetailScreen(state: AppState, id: String) {
                             item.login?.allUris?.firstOrNull { it.startsWith("http") }?.let { url ->
                                 DropdownMenuItem(text = { Text("Website öffnen") }, leadingIcon = { Icon(Symbols.OpenInNew, null) }, onClick = { menu = false; openUrl(url) })
                             }
+                            DropdownMenuItem(text = { Text("Sicheren Link erstellen") }, leadingIcon = { Icon(Symbols.Share, null) }, onClick = { menu = false; secureLink = true })
                             DropdownMenuItem(text = { Text("In Ordner verschieben") }, leadingIcon = { Icon(Symbols.Folder, null) }, onClick = { menu = false; folderMenu = true })
                             HorizontalDivider()
                             DropdownMenuItem(
@@ -229,6 +231,7 @@ fun DetailScreen(state: AppState, id: String) {
                             )
                         }
                         FolderMenu(state, item, folderMenu) { folderMenu = false }
+                        if (secureLink) SecureLinkSheet(item) { secureLink = false }
                     }
                 }
             }

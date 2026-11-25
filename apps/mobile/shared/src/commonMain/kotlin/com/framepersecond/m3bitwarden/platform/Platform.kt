@@ -59,5 +59,8 @@ expect object PlatformPrefs {
 /** Opens a website in the system browser. */
 expect fun openUrl(url: String)
 
+/** Opens the system share sheet for [text] (e.g. a secure link). */
+expect fun shareText(text: String)
+
 /** Decodes a PNG/ICO/JPEG/WebP image (website icons); null if it is not a readable image. */
 expect fun decodeImage(bytes: ByteArray): androidx.compose.ui.graphics.ImageBitmap?

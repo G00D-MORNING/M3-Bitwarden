@@ -26,6 +26,10 @@ import com.bitwarden.crypto.HashPurpose
 import com.bitwarden.crypto.Kdf
 import com.bitwarden.sdk.Client
 import com.bitwarden.sdk.ManagedSettingsBindingClient
+import com.bitwarden.send.AuthType
+import com.bitwarden.send.SendTextView
+import com.bitwarden.send.SendType
+import com.bitwarden.send.SendView
 import com.bitwarden.vault.CipherView
 import com.bitwarden.vault.EncryptionContext
 import com.framepersecond.m3bitwarden.android.passkey.PasskeyEngine
@@ -547,6 +551,56 @@ class AndroidVault private constructor(private val context: Context) : VaultBack
         scope.launch {
             val bytes = runCatching { api.icon(host) }.getOrNull()
             onResult(bytes)
+        }
+    }
+
+    override fun createSecureLink(
+        name: String,
+        text: String,
+        validHours: Int,
+        maxViews: Int,
+        password: String?,
+        onResult: (accessId: String?, key: String?, error: String?) -> Unit,
+    ) {
+        scope.launch {
+            val result = runCatching {
+                val client = client ?: error("Der Tresor ist gesperrt.")
+                // Our own 16-byte seed, so the link can carry it (the server only gets it encrypted).
+                val seed = ByteArray(16).also { java.security.SecureRandom().nextBytes(it) }
+                val key = java.util.Base64.getUrlEncoder().withoutPadding().encodeToString(seed)
+                val now = java.time.Instant.now()
+                val until = now.plus(validHours.toLong(), java.time.temporal.ChronoUnit.HOURS)
+                val pw = password?.takeIf { it.isNotEmpty() }
+                val send = client.sends().encrypt(
+                    SendView(
+                        id = null, accessId = null, name = name, notes = null, key = key,
+                        newPassword = pw, hasPassword = false, type = SendType.TEXT, file = null,
+                        text = SendTextView(text, false), data = null,
+                        maxAccessCount = if (maxViews > 0) maxViews.toUInt() else null, accessCount = 0u,
+                        disabled = false, hideEmail = true, revisionDate = now, deletionDate = until,
+                        expirationDate = until, emails = emptyList(),
+                        authType = if (pw != null) AuthType.PASSWORD else AuthType.NONE,
+                    ),
+                )
+                val body = JSONObject()
+                    .put("type", 0)
+                    .put("key", send.key)
+                    .put("name", send.name)
+                    .put("notes", JSONObject.NULL)
+                    .put("text", JSONObject().put("text", send.text?.text).put("hidden", false))
+                    .put("maxAccessCount", if (maxViews > 0) maxViews else JSONObject.NULL)
+                    .put("expirationDate", until.toString())
+                    .put("deletionDate", until.toString())
+                    .put("password", send.password ?: JSONObject.NULL)
+                    .put("disabled", false)
+                    .put("hideEmail", true)
+                val accessId = api.createSend(body).optString("accessId").ifEmpty { error("Der Server hat keinen Link geliefert.") }
+                accessId to key
+            }
+            result.fold(
+                onSuccess = { (accessId, key) -> onResult(accessId, key, null) },
+                onFailure = { onResult(null, null, it.message ?: "Link konnte nicht erstellt werden.") },
+            )
         }
     }
 

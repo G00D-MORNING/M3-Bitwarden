@@ -594,6 +594,59 @@ extension VaultService: VaultBackend {
         Task { @MainActor in self.signOut() }
     }
 
+    nonisolated func createSecureLink(
+        name: String, text: String, validHours: Int32, maxViews: Int32, password: String?,
+        onResult: @escaping (String?, String?, String?) -> Void
+    ) {
+        Task { @MainActor in
+            do {
+                guard let client = self.client else { throw SecureLinkFailure("Der Tresor ist gesperrt.") }
+                // Our own 16-byte seed, so the link can carry it (the server only gets it encrypted).
+                var seed = Data(count: 16)
+                let status = seed.withUnsafeMutableBytes { SecRandomCopyBytes(kSecRandomDefault, 16, $0.baseAddress!) }
+                guard status == errSecSuccess else { throw SecureLinkFailure("Kein Zufall verfügbar.") }
+                let key = seed.base64EncodedString()
+                    .replacingOccurrences(of: "+", with: "-").replacingOccurrences(of: "/", with: "_")
+                    .replacingOccurrences(of: "=", with: "")
+                let now = Date()
+                let until = now.addingTimeInterval(TimeInterval(validHours) * 3600)
+                let pw = password.flatMap { $0.isEmpty ? nil : $0 }
+                let encrypted = try client.sends().encrypt(send: SendView(
+                    id: nil, accessId: nil, name: name, notes: nil, key: key,
+                    newPassword: pw, hasPassword: false, type: .text, file: nil,
+                    text: SendTextView(text: text, hidden: false), data: nil,
+                    maxAccessCount: maxViews > 0 ? UInt32(maxViews) : nil, accessCount: 0,
+                    disabled: false, hideEmail: true, revisionDate: now, deletionDate: until,
+                    expirationDate: until, emails: [], authType: pw != nil ? .password : .none
+                ))
+                let iso = ISO8601DateFormatter()
+                iso.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
+                let body: [String: Any] = [
+                    "type": 0,
+                    "key": encrypted.key,
+                    "name": encrypted.name,
+                    "notes": NSNull(),
+                    "text": ["text": (encrypted.text?.text).map { $0 as Any } ?? NSNull(), "hidden": false],
+                    "maxAccessCount": maxViews > 0 ? Int(maxViews) as Any : NSNull() as Any,
+                    "expirationDate": iso.string(from: until),
+                    "deletionDate": iso.string(from: until),
+                    "password": encrypted.password.map { $0 as Any } ?? NSNull(),
+                    "disabled": false,
+                    "hideEmail": true,
+                ]
+                let accessId = try await self.api.createSend(body)
+                onResult(accessId, key, nil)
+            } catch {
+                onResult(nil, nil, (error as? LocalizedError)?.errorDescription ?? error.localizedDescription)
+            }
+        }
+    }
+
+    private struct SecureLinkFailure: LocalizedError {
+        let errorDescription: String?
+        init(_ message: String) { errorDescription = message }
+    }
+
     /// Server id for a folder chosen in the UI (folders created offline get theirs on upload).
     private func serverFolderId(_ id: String?) -> String? {
         guard let id else { return nil }

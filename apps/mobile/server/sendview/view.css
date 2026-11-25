@@ -1,0 +1,38 @@
+:root {
+  --bg: #f7f8fc; --surface: #ffffff; --on: #1a1c20; --muted: #5b5f6a; --primary: #1a5fd8;
+  --on-primary: #fff; --tonal: #dbe3fb; --on-tonal: #0f2a66; --line: #e3e6ee; --error: #b3261e;
+  color-scheme: light dark;
+}
+@media (prefers-color-scheme: dark) {
+  :root {
+    --bg: #111318; --surface: #1c1f26; --on: #e3e5ec; --muted: #a3a8b5; --primary: #aac4ff;
+    --on-primary: #0b2a63; --tonal: #2b3550; --on-tonal: #dbe3fb; --line: #2c303a; --error: #ffb4ab;
+  }
+}
+* { box-sizing: border-box; }
+html, body { margin: 0; background: var(--bg); color: var(--on); }
+body { font: 16px/1.5 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif; }
+main { max-width: 560px; margin: 0 auto; padding: 48px 16px 32px; }
+.badge { width: 64px; height: 64px; border-radius: 22px; background: var(--tonal); color: var(--on-tonal);
+  display: grid; place-items: center; margin-bottom: 16px; }
+h1 { font-size: 30px; line-height: 1.2; margin: 0 0 8px; font-weight: 600; }
+h2 { font-size: 22px; margin: 0 0 12px; font-weight: 600; word-break: break-word; }
+.lead { color: var(--muted); margin: 0 0 24px; }
+.card { background: var(--surface); border: 1px solid var(--line); border-radius: 24px; padding: 20px; margin-bottom: 16px; }
+.small { color: var(--muted); font-size: 14px; margin: 0 0 16px; }
+label { display: block; margin-bottom: 8px; }
+input { width: 100%; font: inherit; color: var(--on); background: var(--bg); border: 1px solid var(--line);
+  border-radius: 14px; padding: 12px 14px; margin-bottom: 16px; }
+input:focus { outline: 2px solid var(--primary); outline-offset: 1px; }
+button { font: inherit; font-weight: 600; border: 0; border-radius: 999px; padding: 12px 22px; cursor: pointer; }
+button:disabled { opacity: .6; cursor: default; }
+.primary { background: var(--primary); color: var(--on-primary); width: 100%; }
+.tonal { background: var(--tonal); color: var(--on-tonal); width: 100%; margin-top: 8px; }
+.field { border-top: 1px solid var(--line); padding: 12px 0; display: flex; gap: 12px; align-items: center; }
+.field:first-child { border-top: 0; padding-top: 0; }
+.field .text { flex: 1; min-width: 0; }
+.field .label { font-size: 13px; color: var(--muted); }
+.field .value { font-family: ui-monospace, "SF Mono", Menlo, monospace; word-break: break-all; white-space: pre-wrap; }
+.field button { background: var(--tonal); color: var(--on-tonal); padding: 8px 14px; font-size: 14px; flex: none; }
+.error { color: var(--error); }
+.foot { color: var(--muted); font-size: 13px; margin-top: 24px; }

@@ -93,5 +93,12 @@ actual fun openUrl(url: String) {
     UIApplication.sharedApplication.openURL(target, options = emptyMap<Any?, Any>(), completionHandler = null)
 }
 
+actual fun shareText(text: String) {
+    val sheet = platform.UIKit.UIActivityViewController(activityItems = listOf(text), applicationActivities = null)
+    var top = UIApplication.sharedApplication.keyWindow?.rootViewController ?: return
+    while (top.presentedViewController != null) top = top.presentedViewController!!
+    top.presentViewController(sheet, animated = true, completion = null)
+}
+
 actual fun decodeImage(bytes: ByteArray): androidx.compose.ui.graphics.ImageBitmap? =
     runCatching { org.jetbrains.skia.Image.makeFromEncoded(bytes).toComposeImageBitmap() }.getOrNull()

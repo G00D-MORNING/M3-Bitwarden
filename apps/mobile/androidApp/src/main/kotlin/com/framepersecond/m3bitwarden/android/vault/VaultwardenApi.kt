@@ -84,6 +84,9 @@ class VaultwardenApi(private val certificate: DeviceCertificate, private val sto
 
     suspend fun createCipher(body: JSONObject): JSONObject = JSONObject(send("POST", "${M3BConfig.API_URL}/ciphers", body.toString(), auth = true))
 
+    /** Uploads an encrypted text Send (secure link); returns the server's answer with its accessId. */
+    suspend fun createSend(body: JSONObject): JSONObject = JSONObject(send("POST", "${M3BConfig.API_URL}/sends", body.toString(), auth = true))
+
     suspend fun updateCipher(id: String, body: JSONObject): JSONObject = JSONObject(send("PUT", "${M3BConfig.API_URL}/ciphers/$id", body.toString(), auth = true))
 
     /** Moves the item to the trash (restorable in the web vault). */

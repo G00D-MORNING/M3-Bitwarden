@@ -43,6 +43,21 @@ interface VaultBackend {
      * [onResult] runs on the main thread. Icons are kept in memory only.
      */
     fun loadIcon(host: String, onResult: (ByteArray?) -> Unit)
+
+    /**
+     * Creates a secure link: [text] is encrypted on this device as a Bitwarden text Send and
+     * uploaded. [maxViews] 0 means no limit; [password] (optional) protects the link on top.
+     * [onResult] runs on the main thread with the access id and the base64url key seed, or with
+     * an error message (see [SecureLinks.url]).
+     */
+    fun createSecureLink(
+        name: String,
+        text: String,
+        validHours: Int,
+        maxViews: Int,
+        password: String?,
+        onResult: (accessId: String?, key: String?, error: String?) -> Unit,
+    )
 }
 
 /**

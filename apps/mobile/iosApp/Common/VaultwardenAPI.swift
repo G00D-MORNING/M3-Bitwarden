@@ -141,6 +141,14 @@ final class VaultwardenAPI {
 
     private struct SavedId: Decodable { let id: String }
 
+    /// Uploads an encrypted text Send (secure link) and returns its access id.
+    func createSend(_ body: [String: Any]) async throws -> String {
+        let created: SendCreated = try await send(json: body, to: M3BConfig.apiURL.appendingPathComponent("sends"), auth: true)
+        return created.accessId
+    }
+
+    private struct SendCreated: Decodable { let accessId: String }
+
     func createFolder(name: String) async throws -> FolderModel {
         try await send(encodable: ["name": name], to: M3BConfig.apiURL.appendingPathComponent("folders"), method: "POST")
     }
