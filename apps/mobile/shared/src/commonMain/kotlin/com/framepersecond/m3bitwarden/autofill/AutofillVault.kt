@@ -202,7 +202,7 @@ class AutofillVault(private val store: AutofillStore) {
                 name = name,
                 type = ItemType.Login,
                 login = com.framepersecond.m3bitwarden.data.LoginData(username = username, password = password, uri = uri.orEmpty()),
-                updatedLabel = "Gerade gespeichert",
+                updatedLabel = "gerade eben",
             ),
         ).id
 

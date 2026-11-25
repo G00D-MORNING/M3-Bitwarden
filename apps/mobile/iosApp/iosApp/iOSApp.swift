@@ -9,6 +9,7 @@ struct iOSApp: App {
         if #available(iOS 26, *) {
             NativeChrome.shared.enabled = true
         }
+        ProtonService.shared.install()
         // Lets the vault lock itself before iOS suspends the app in the background.
         VaultService.shared.requestBackgroundTime = { expiring in
             var task = UIBackgroundTaskIdentifier.invalid

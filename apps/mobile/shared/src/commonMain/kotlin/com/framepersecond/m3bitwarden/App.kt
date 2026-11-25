@@ -255,6 +255,7 @@ private fun Tabs(state: AppState, platformSettings: @Composable () -> Unit) {
         ) { tab ->
             when (tab) {
                 MainTab.Vault -> VaultScreen(state, padding)
+                MainTab.Codes -> com.framepersecond.m3bitwarden.ui.screens.CodesScreen(state, padding)
                 MainTab.Generator -> GeneratorScreen(state, padding)
                 MainTab.Settings -> SettingsScreen(state, padding, platformSettings)
             }
@@ -293,6 +294,7 @@ private fun FloatingNav(state: AppState) {
         Row(Modifier.padding(8.dp), horizontalArrangement = Arrangement.spacedBy(4.dp)) {
             listOf(
                 Triple(MainTab.Vault, "Tresor", Symbols.ShieldLock to Symbols.ShieldLockFill),
+                Triple(MainTab.Codes, "Codes", Symbols.Timer to Symbols.Timer),
                 Triple(MainTab.Generator, "Generator", Symbols.Password to Symbols.PasswordFill),
                 Triple(MainTab.Settings, "Einstellungen", Symbols.Settings to Symbols.SettingsFill),
             ).forEach { (tab, label, icons) ->

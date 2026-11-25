@@ -43,6 +43,9 @@ final class VaultService: NSObject, ObservableObject {
     /// Asks iOS for time in the background and calls the handler just before it runs out; returns
     /// a function that gives the time back. Set by the app (extensions have no UIApplication).
     var requestBackgroundTime: ((@escaping () -> Void) -> () -> Void)?
+
+    /// Runs after every unlock (the app refreshes the Proton Authenticator here).
+    var onUnlocked: (() -> Void)?
     private let connection = NWPathMonitor()
     private var offlineLock: Task<Void, Never>?
 
@@ -363,6 +366,7 @@ final class VaultService: NSObject, ObservableObject {
         }
         VaultSession.shared.markUnlocked()
         phase = .unlocked
+        onUnlocked?()
         // The sync above ran before the vault counted as open, so publish the identities now.
         await CredentialIdentitySync.run()
     }

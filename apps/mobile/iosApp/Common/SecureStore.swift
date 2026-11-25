@@ -12,6 +12,8 @@ enum SecureStore {
         case account = "account"
         case tokens = "tokens"
         case userKey = "userKey"
+        /// Proton Authenticator session (tokens and key password), this device only.
+        case protonSession = "protonSession"
     }
 
     private static let service = "com.framepersecond.m3bitwarden"

@@ -19,7 +19,7 @@ import kotlinx.coroutines.delay
 
 enum class ThemeMode(val label: String) { System("System"), Light("Hell"), Dark("Dunkel") }
 
-enum class MainTab { Vault, Generator, Settings }
+enum class MainTab { Vault, Codes, Generator, Settings }
 
 /** How long the vault stays unlocked while the app is in the background. -1 = until restart. */
 enum class VaultTimeout(val label: String, val seconds: Long) {

@@ -15,6 +15,8 @@ dependencies {
     implementation(libs.compose.material3)
     implementation(libs.compose.ui)
     implementation(libs.bitwarden.sdk)
+    // Proton core bindings (uniffi) call through JNA; the SDK already ships it at runtime.
+    implementation("net.java.dev.jna:jna:5.17.0@aar")
     implementation(libs.kotlinx.coroutines.android)
 }
 

@@ -112,6 +112,16 @@ fun SettingsScreen(state: AppState, contentPadding: PaddingValues, platformSetti
             ListRow("Zwischenablage leeren", segmentShape(2, 3), supporting = clipboardLabel(settings.clearClipboardSeconds), icon = Symbols.ContentCopy, onClick = { choose = "clipboard" }) { Icon(Symbols.ChevronRight, null) }
         }
 
+        Section("Proton Authenticator") {
+            val proton = com.framepersecond.m3bitwarden.authenticator.ProtonAuthenticator
+            if (proton.connected) {
+                ListRow("Verbunden", segmentShape(0, 2), supporting = "${proton.entries.size} Codes · bleibt angemeldet", icon = Symbols.Timer, onClick = { state.selectedTab = com.framepersecond.m3bitwarden.MainTab.Codes })
+                ListRow("Proton trennen", segmentShape(1, 2), supporting = "Meldet diese App bei Proton ab", icon = Symbols.Logout, onClick = { proton.backend?.disconnect() })
+            } else {
+                ListRow("Mit Proton verbinden", segmentShape(0, 1), supporting = "Codes aus deinem Proton Authenticator", icon = Symbols.Timer, onClick = { state.selectedTab = com.framepersecond.m3bitwarden.MainTab.Codes })
+            }
+        }
+
         Section("Automatisch ausfüllen") {
             SwitchRow("Bestätigungscode kopieren", settings.copyTotpAutomatically, segmentShape(0, 1), supporting = "Nach dem Ausfüllen", icon = Symbols.Timer) {
                 settings.updateCopyTotpAutomatically(it)

@@ -26,7 +26,7 @@ object SampleVault {
             ),
             passwordHistory = listOf(PasswordHistoryEntry("altesPasswort123", "Vor 3 Monaten")),
             notes = "Recovery-Codes liegen in der Notiz „Wiederherstellung“.",
-            updatedLabel = "Heute geändert",
+            updatedLabel = "heute",
         ),
         VaultItem(
             id = "2",
@@ -40,7 +40,7 @@ object SampleVault {
                 uri = "https://accounts.google.com",
                 totpSecret = "KRSXG5CTMVRXEZLU",
             ),
-            updatedLabel = "Vor 3 Tagen geändert",
+            updatedLabel = "vor 3 Tagen",
         ),
         VaultItem(
             id = "3",
@@ -56,7 +56,7 @@ object SampleVault {
                 expYear = "2029",
                 code = "317",
             ),
-            updatedLabel = "Vor 2 Wochen geändert",
+            updatedLabel = "vor 2 Wochen",
         ),
         VaultItem(
             id = "4",
@@ -68,7 +68,7 @@ object SampleVault {
                 password = "tH3-m0unta1n!s-c4lling",
                 uri = "https://nas.home.example",
             ),
-            updatedLabel = "Vor 1 Monat geändert",
+            updatedLabel = "vor 1 Monat",
         ),
         VaultItem(
             id = "5",
@@ -80,7 +80,7 @@ object SampleVault {
                 fingerprint = "SHA256:3f9Kp2LmQx7Rt4Vb8Nc1Yh6Ws0Za5Ue2Jd9Gi4Ho7Fk",
                 privateKey = "-----BEGIN OPENSSH PRIVATE KEY-----\nb3BlbnNzaC1rZXktdjEAAAAABG5vbmUAAAAEbm9uZQAAAAAAAAABAAAAMwAAAAtzc2gtZW\n-----END OPENSSH PRIVATE KEY-----",
             ),
-            updatedLabel = "Vor 2 Monaten geändert",
+            updatedLabel = "vor 2 Monaten",
         ),
         VaultItem(
             id = "6",
@@ -98,7 +98,7 @@ object SampleVault {
                 country = "Deutschland",
                 company = "Beispiel GmbH",
             ),
-            updatedLabel = "Vor 5 Monaten geändert",
+            updatedLabel = "vor 5 Monaten",
         ),
         VaultItem(
             id = "7",
@@ -106,7 +106,7 @@ object SampleVault {
             type = ItemType.Note,
             folder = "Privat",
             notes = "SSID: Beispielnetz\nPasswort: Sonnenblume-Treppe-Kompass\nGast-WLAN: Beispielgast",
-            updatedLabel = "Vor 6 Monaten geändert",
+            updatedLabel = "vor 6 Monaten",
         ),
         VaultItem(
             id = "8",
@@ -118,7 +118,7 @@ object SampleVault {
                 password = "bR8%nQ2&wE5^",
                 uri = "https://www.netflix.com",
             ),
-            updatedLabel = "Vor 1 Jahr geändert",
+            updatedLabel = "vor 1 Jahr",
         ),
         VaultItem(
             id = "9",
@@ -131,7 +131,7 @@ object SampleVault {
                 uri = "https://www.bahn.de",
             ),
             notes = "BahnCard 25, gültig bis März.",
-            updatedLabel = "Vor 2 Jahren geändert",
+            updatedLabel = "vor 2 Jahren",
         ),
         VaultItem(
             id = "10",
@@ -144,7 +144,7 @@ object SampleVault {
                 password = "vN4!kT8#zR1@mW6\$",
                 uri = "https://www.sparkasse.de",
             ),
-            updatedLabel = "Vor 4 Monaten geändert",
+            updatedLabel = "vor 4 Monaten",
         ),
         VaultItem(
             id = "11",
@@ -152,7 +152,7 @@ object SampleVault {
             type = ItemType.Note,
             folder = "Arbeit",
             notes = "GitHub Recovery-Codes:\n4f2a-9c1e\n7b3d-2e8f\na1c9-5d4b",
-            updatedLabel = "Vor 3 Wochen geändert",
+            updatedLabel = "vor 3 Wochen",
         ),
         VaultItem(
             id = "12",
@@ -164,7 +164,7 @@ object SampleVault {
                 uri = "https://store.steampowered.com",
                 totpSecret = "MFRGGZDFMZTWQ2LK",
             ),
-            updatedLabel = "Vor 8 Monaten geändert",
+            updatedLabel = "vor 8 Monaten",
         ),
         VaultItem(
             id = "13",
@@ -179,7 +179,7 @@ object SampleVault {
                 expYear = "2027",
                 code = "842",
             ),
-            updatedLabel = "Vor 1 Jahr geändert",
+            updatedLabel = "vor 1 Jahr",
         ),
     )
 }

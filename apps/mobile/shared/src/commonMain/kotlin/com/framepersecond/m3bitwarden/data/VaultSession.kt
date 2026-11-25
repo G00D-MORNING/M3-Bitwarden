@@ -118,6 +118,7 @@ object VaultSession {
         isUnlocked = false
         if (backend != null) repository.replaceAll(emptyList())
         com.framepersecond.m3bitwarden.ui.brands.SiteIcons.clear()
+        com.framepersecond.m3bitwarden.authenticator.ProtonAuthenticator.clear()
         if (wasUnlocked || backend != null) lockListeners.forEach { it() }
     }
 

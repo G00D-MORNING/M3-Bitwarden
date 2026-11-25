@@ -391,6 +391,7 @@ class AndroidVault private constructor(private val context: Context) : VaultBack
             throw if (isConnectionError(e)) OfflineException() else e
         }
         VaultSession.markUnlocked()
+        onUnlocked?.invoke()
         phase = Phase.Unlocked
     }
 
@@ -556,6 +557,9 @@ class AndroidVault private constructor(private val context: Context) : VaultBack
         id.startsWith(VaultRepository.LOCAL_PREFIX) -> folderIds[id] ?: VaultSession.serverIdFor(id)
         else -> id
     }
+
+    /** Runs after every unlock (the app refreshes the Proton Authenticator here). */
+    var onUnlocked: (() -> Unit)? = null
 
     // MARK: Passkeys
 

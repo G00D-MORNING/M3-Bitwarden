@@ -92,6 +92,7 @@ struct GlassChrome: View {
 
     private let tabs = [
         Tab(label: "Tresor", symbol: "lock.shield", selectedSymbol: "lock.shield.fill"),
+        Tab(label: "Codes", symbol: "clock.badge.checkmark", selectedSymbol: "clock.badge.checkmark.fill"),
         Tab(label: "Generator", symbol: "key.horizontal", selectedSymbol: "key.horizontal.fill"),
         Tab(label: "Einstellungen", symbol: "gearshape", selectedSymbol: "gearshape.fill"),
     ]
@@ -118,13 +119,13 @@ struct GlassChrome: View {
             // Prototype: the bar spans the width, tabs evenly spread; scrolling shrinks it to the
             // selected tab.
             // The selected tab takes the free width and its pill fills exactly that slot; the
-            // others keep a fixed 84 pt (as in the prototype). Nothing is wider than its slot, so the pill never runs
+            // others keep a fixed 64 pt. Nothing is wider than its slot, so the pill never runs
             // past the bar, and one smooth animation (no overshoot) moves pill, label and icons.
             HStack(spacing: 4) {
                 ForEach(tabs.indices, id: \.self) { i in
                     if !compact || i == selected {
                         tabButton(i, selected: i == selected, showLabel: !compact)
-                            .frame(width: compact || i == selected ? nil : 84)
+                            .frame(width: compact || i == selected ? nil : 64)
                             .frame(maxWidth: !compact && i == selected ? .infinity : nil)
                     }
                 }

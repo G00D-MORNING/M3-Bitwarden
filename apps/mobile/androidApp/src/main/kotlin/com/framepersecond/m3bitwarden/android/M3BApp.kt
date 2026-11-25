@@ -14,6 +14,8 @@ class M3BApp : Application() {
         super.onCreate()
         AndroidPlatform.context = this
         val vault = AndroidVault.get(this)
+        val proton = com.framepersecond.m3bitwarden.android.proton.ProtonService(this).also { it.install() }
+        vault.onUnlocked = { proton.refresh() }
         registerActivityLifecycleCallbacks(object : ActivityLifecycleCallbacks {
             override fun onActivityStarted(activity: Activity) {
                 if (started++ == 0) vault.onAppForeground()

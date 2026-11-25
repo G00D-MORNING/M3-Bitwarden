@@ -19,3 +19,7 @@ node_modules/
 **/xcshareddata/WorkspaceSettings.xcsettings
 keystore.properties
 *.jks
+
+# Proton core binaries: built by tools/build-proton-core.sh (needs Rust), too large for git
+iosApp/ProtonCore/M3ProtonCore.xcframework/
+androidApp/src/main/jniLibs/
