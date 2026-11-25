@@ -13,7 +13,8 @@ enum CredentialIdentitySync {
         let store = ASCredentialIdentityStore.shared
         let state = await store.state()
         guard state.isEnabled else { return }
-        var identities: [ASCredentialIdentity] = CredentialProviderBridge.shared.identities().map {
+        let logins = CredentialProviderBridge.shared.identities()
+        var identities: [ASCredentialIdentity] = logins.map {
             let identity = ASPasswordCredentialIdentity(
                 serviceIdentifier: ASCredentialServiceIdentifier(identifier: $0.domain, type: .domain),
                 user: $0.user,
@@ -24,6 +25,19 @@ enum CredentialIdentitySync {
             return identity
         }
         identities += VaultService.shared.passkeys().map(passkeyIdentity)
+        // Logins with a code (e.g. linked from the Proton Authenticator): iOS then offers the
+        // code above the keyboard in 2FA fields of that site.
+        if #available(iOS 18.0, *) {
+            identities += logins.filter(\.hasTotp).map {
+                let identity = ASOneTimeCodeCredentialIdentity(
+                    serviceIdentifier: ASCredentialServiceIdentifier(identifier: $0.domain, type: .domain),
+                    label: $0.user.isEmpty ? $0.domain : $0.user,
+                    recordIdentifier: $0.recordId
+                )
+                identity.rank = Int($0.rank)
+                return identity
+            }
+        }
         try? await store.replaceCredentialIdentities(identities)
     }
 

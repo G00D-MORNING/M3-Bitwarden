@@ -26,7 +26,7 @@ data class ProviderRow(
  * One entry for `ASCredentialIdentityStore`, so iOS can show logins above the keyboard.
  * [rank]: higher is suggested first; the login picked most recently for a site wins.
  */
-data class ProviderIdentity(val domain: String, val user: String, val recordId: String, val rank: Int = 0)
+data class ProviderIdentity(val domain: String, val user: String, val recordId: String, val rank: Int = 0, val hasTotp: Boolean = false)
 
 /** Offer shown after a manual pick: "use this login for <domain> from now on?". */
 data class ProviderLinkOffer(val itemId: String, val domain: String, val uri: String)
@@ -99,7 +99,7 @@ object CredentialProviderBridge {
         val out = LinkedHashSet<ProviderIdentity>()
         for (c in vault.credentials().filter { it.kind == CredentialKind.Login }) {
             val rank = c.lastUsedEpochMs?.let { (it / 60_000).toInt() } ?: 0
-            fun identity(domain: String) = ProviderIdentity(domain, c.username, c.id, rank)
+            fun identity(domain: String) = ProviderIdentity(domain, c.username, c.id, rank, c.hasTotp)
             for (u in c.uris) {
                 val info = UrlInfo.parse(u.uri) ?: continue
                 val host = info.host ?: continue

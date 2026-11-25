@@ -23,8 +23,16 @@ final class CredentialProviderViewController: ASCredentialProviderViewController
     }
 
     override func provideCredentialWithoutUserInteraction(for credentialRequest: any ASCredentialRequest) {
-        // Passkeys always go through Face ID; passwords fill silently only while the vault is
-        // open in memory. Otherwise iOS shows our UI (prepareInterfaceToProvideCredential).
+        // Passkeys always go through Face ID; passwords and codes fill silently only while the
+        // vault is open in memory. Otherwise iOS shows our UI (prepareInterfaceToProvideCredential).
+        if #available(iOS 18.0, *), let otc = credentialRequest.credentialIdentity as? ASOneTimeCodeCredentialIdentity {
+            guard bridge.isUnlocked, let id = otc.recordIdentifier, let code = currentCode(id) else {
+                extensionContext.cancelRequest(withError: NSError(domain: ASExtensionErrorDomain, code: ASExtensionError.userInteractionRequired.rawValue))
+                return
+            }
+            extensionContext.completeOneTimeCodeRequest(using: ASOneTimeCodeCredential(code: code))
+            return
+        }
         guard bridge.isUnlocked,
               let identity = credentialRequest.credentialIdentity as? ASPasswordCredentialIdentity,
               let id = identity.recordIdentifier,
@@ -40,6 +48,14 @@ final class CredentialProviderViewController: ASCredentialProviderViewController
     override func prepareInterfaceToProvideCredential(for credentialRequest: any ASCredentialRequest) {
         if let request = credentialRequest as? ASPasskeyCredentialRequest {
             return providePasskey(request)
+        }
+        if #available(iOS 18.0, *), let otc = credentialRequest.credentialIdentity as? ASOneTimeCodeCredentialIdentity {
+            guard let id = otc.recordIdentifier else { return cancel() }
+            host(ExtensionRoot(mode: .oneTimeCode, identifiers: [otc.serviceIdentifier.identifier], singleId: id, bridge: bridge, onDone: { _ in self.cancel() }) { ok in
+                guard ok, let code = self.currentCode(id) else { return self.cancel() }
+                self.extensionContext.completeOneTimeCodeRequest(using: ASOneTimeCodeCredential(code: code))
+            })
+            return
         }
         guard let identity = credentialRequest.credentialIdentity as? ASPasswordCredentialIdentity, let id = identity.recordIdentifier else {
             return cancel()
@@ -239,6 +255,10 @@ final class CredentialProviderViewController: ASCredentialProviderViewController
             await CredentialIdentitySync.run()
             complete()
         }
+    }
+
+    private func currentCode(_ id: String) -> String? {
+        bridge.totp(id: id, epochSeconds: Int64(Date().timeIntervalSince1970))
     }
 
     override func viewDidDisappear(_ animated: Bool) {
